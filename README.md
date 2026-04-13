@@ -37,3 +37,4 @@ Click objects to view their states.
   "rest" is the coefficient of restitution between balls.
   "wFrict" is the friction coefficient between balls and walls.
   "wRest" is the coefficient of restitution between balls and walls.
+
