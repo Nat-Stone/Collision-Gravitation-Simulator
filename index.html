@@ -898,7 +898,7 @@ function MenuValue(n, title, get, set) {
     ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
     
     ctxMenu.fillStyle = (this.clicked ? "white" : "black");
-    ctxMenu.font = "13px Arial"
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
     ctxMenu.textAlign = "center";
     ctxMenu.textBaseline = "middle";
     ctxMenu.fillText(this.get(), this.x, this.y);
