@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-    <title>Collision/Gravitation Simulator</title>
+    <title>Physics Simulator</title>
     <body>
         <style>
             body {
@@ -16,11 +16,11 @@
         
         <canvas id="main"></canvas>
         <canvas id="menu"></canvas>
-        <!---->
+        <!--
         <p id="p"></p>
         <p id="q"></p>
         <p id="e"></p>
-        <!---->
+        -->
         <script>
           
 /*
@@ -29,6 +29,7 @@ this version has all instances of "*****" replaced with "but" + "t"
 
 todo: 
 fix wall lists
+fix default mass
 */
 
 const widthFactor = 4 / 5;
@@ -65,6 +66,8 @@ var maindt = 0;
 var updateNum = 0;
 
 var paused = false;
+var clientX = null;
+var clientY = null;
 var mouseX = null;
 var mouseY = null;
 var pmouseX = null;
@@ -104,6 +107,7 @@ var collide = true;
 var push = true;
 var bounded = false;
 var inValue = false;
+var ballHovered = false;
 
 const settingValues = [];
 const objValues = [];
@@ -162,48 +166,63 @@ function truncate(num) {
   return Math.round(num / 10 ** (zeros - 2)) / 100 + "e" + (zeros > 0 ? "+" : "") + zeros;
 }
 
-function drawRectWall(x1, y1, x2, y2, size, color) {
+function drawRectWall(x1, y1, x2, y2, size, color, ctx = ctxMain) {
+  if (ctx == ctxMain) {
     scale();
-    ctxMain.translate(x1, y1);
-    ctxMain.rotate(angle(x1, y1, x2, y2));
-    ctxMain.scale(dist(x1, y1, x2, y2) / 100, size / 100);
-    ctxMain.fillStyle = color;
-    
-    ctxMain.fillRect(0, 0, 100, 100);//0, 0, 100, 100);
+  } else {
+    ctx.resetTransform();
+  }
+  ctx.translate(x1, y1);
+  ctx.rotate(angle(x1, y1, x2, y2));
+  ctx.scale(dist(x1, y1, x2, y2) / 100, size / 100);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 100, 100);
 }
 
-function drawCircleWall(x, y, r1, r2, a1, a2, color) {
+function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
+  if (ctx == ctxMain) {
     scale();
-    ctxMain.strokeStyle = color;
-    ctxMain.lineWidth = Math.abs(r2 - r1);
-    ctxMain.lineCap = "but" + "t";
-    ctxMain.beginPath();
-    ctxMain.arc(x, y, (r1 + r2) / 2, a1, a2);
-    ctxMain.stroke();
+  } else {
+    ctx.resetTransform();
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.abs(r2 - r1);
+  ctx.lineCap = "but" + "t";
+  
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.abs(r2 - r1);
+  ctx.lineCap = "but" + "t";
+  ctx.beginPath();
+  ctx.arc(x, y, (r1 + r2) / 2, a1, a2);
+  ctx.stroke();
 }
     
-function drawBall(px, py, pa, size, color) {
+function drawBall(px, py, pa, size, color, ctx = ctxMain) {
+  if (ctx == ctxMain) {
     scale();
-    ctxMain.translate(px, py);
-    ctxMain.scale(size / 100, size / 100);
-    ctxMain.rotate(pa);
-    ctxMain.fillStyle = color;
-    
-    ctxMain.beginPath();
-    ctxMain.arc(0, 0, 50, 0, 2 * Math.PI);
-    ctxMain.fill();
-    ctxMain.lineWidth = 7.5;
-    ctxMain.lineCap = "round";
-    ctxMain.strokeStyle = "#0000007f";
-    ctxMain.beginPath();
-    let sqrt3 = 15 * Math.sqrt(3);
-    ctxMain.moveTo(0, 0);
-    ctxMain.lineTo(30, 0);
-    ctxMain.moveTo(0, 0);
-    ctxMain.lineTo(-15, sqrt3);
-    ctxMain.moveTo(0, 0);
-    ctxMain.lineTo(-15, -sqrt3);
-    ctxMain.stroke();
+  } else {
+    ctx.resetTransform();
+  }
+  ctx.translate(px, py);
+  ctx.scale(size / 100, size / 100);
+  ctx.rotate(pa);
+  ctx.fillStyle = color;
+  
+  ctx.beginPath();
+  ctx.arc(0, 0, 50, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.lineWidth = 7.5;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#0000007f";
+  ctx.beginPath();
+  let sqrt3 = 15 * Math.sqrt(3);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(30, 0);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-15, sqrt3);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-15, -sqrt3);
+  ctx.stroke();
 }
 
 function RectWall(x1, y1, x2, y2, size, color) {
@@ -979,19 +998,19 @@ function setup() {
     wallRestitution = wRest;
   }));
   
-  objValues.push(new MenuValue(0, "mass", () => (dragObj.mass), function(mass) {
+  objValues.push(new MenuValue(2, "mass", () => (dragObj.mass), function(mass) {
     dragObj.mass = mass;
   }));
-  objValues.push(new MenuValue(1, "size", () => (dragObj.size), function(size) {
+  objValues.push(new MenuValue(3, "size", () => (dragObj.size), function(size) {
     dragObj.size = size;
   }));
-  objValues.push(new MenuValue(2, "vx", () => (dragObj.vx), function(vx) {
+  objValues.push(new MenuValue(4, "vx", () => (dragObj.vx), function(vx) {
     dragObj.vx = vx;
   }));
-  objValues.push(new MenuValue(3, "vy", () => (dragObj.vy), function(vy) {
+  objValues.push(new MenuValue(5, "vy", () => (dragObj.vy), function(vy) {
     dragObj.vy = vy;
   }));
-  objValues.push(new MenuValue(4, "va", () => (dragObj.va), function(va) {
+  objValues.push(new MenuValue(6, "va", () => (dragObj.va), function(va) {
     dragObj.va = va;
   }));
 }
@@ -1121,8 +1140,17 @@ function showMenu() {
   ctxMenu.fillStyle = "#1f0f6f";
   ctxMenu.fillRect(0, 0, menu.width, menu.height);
   
-  for (v of (dragObj == null ? settingValues : objValues)) {
-    v.show();
+  if (dragObj == null) {
+    ctxMenu.resetTransform();
+    for (v of settingValues) {
+      v.show();
+    }
+  } else if (dragObj.wallType == undefined) {
+    drawBall(menu.width / 2, menu.width * 2 / 5, dragObj.pa, menu.width * 3 / 5 * (ballHovered ? 1.08 : 1), dragObj.color, ctxMenu);
+    ctxMenu.resetTransform();
+    for (v of objValues) {
+      v.show();
+    }
   }
 }
 
@@ -1435,8 +1463,18 @@ function checkClick() {
     return true;
 }
 
+function updateBallHover() {
+  if (dragObj != null) {
+    if (dragObj.wallType == undefined) {
+      ballHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY) <= menu.width * 3 / 10 * (ballHovered ? 1.08 : 1);
+    }
+  }
+}
+
 document.onmousemove = function(event) {
     
+    clientX = event.clientX;
+    clientY = event.clientY;
     pmouseX = mouseX;
     pmouseY = mouseY;
     mouseX = event.clientX / scaleFactor + screenX;
@@ -1457,13 +1495,14 @@ document.onmousemove = function(event) {
         }
     }
     
+    updateBallHover();
     for (v of (dragObj == null ? settingValues : objValues)) {
       v.updateHover(event.clientX - main.width, event.clientY);
     }
 }
 
 document.onmousedown = function(event) {
-    
+  
     if (event.clientX < main.width) {
       
       mouseX = event.clientX / scaleFactor + screenX;
@@ -1539,7 +1578,17 @@ document.onmousedown = function(event) {
           break;
         }
       }
+      if (dragObj != null) {
+        if (dragObj.wallType == undefined) {
+          updateBallHover();
+          if (ballHovered) {
+            screenX = dragObj.px - gameWidth / 2;
+            screenY = dragObj.py - gameHeight / 2;
+          }
+        }
+      }
     }
+    
 }
 
 document.onmouseup = function(event) {
