@@ -119,14 +119,12 @@ function scale() {
 }
 
 function zoom(factor, x, y) {
-  document.getElementById("p").innerHTML = x + ", " + y;
   if (x == undefined) {
     x = screenX + gameWidth / 2;
   }
   if (y == undefined) {
     y = screenY + gameHeight / 2;
   }
-  document.getElementById("q").innerHTML = x + ", " + y;
   scaleFactor *= factor;
   gameWidth *= factor;
   gameHeight *= factor;
