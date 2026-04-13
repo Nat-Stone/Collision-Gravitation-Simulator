@@ -29,7 +29,8 @@ Click objects to view their states
   Release "m" to transfer position and velocity
   Press "a" to rotate selected objects
   Release "a" to transfer angular position and velocity
-  Click object in menu to center on it
+  Click the object in the menu to center on it
+  "height" is the in-simulation height of the screen (the width will automatically adjust)
   "G" is the universal gravitational constant
   "gx" and "gy" are the vector components of the uniform gravitation force
   "frict" is the friction coefficient between balls
