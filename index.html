@@ -17,10 +17,10 @@
         <canvas id="main"></canvas>
         <canvas id="menu"></canvas>
         <!--
+        -->
         <p id="p"></p>
         <p id="q"></p>
         <p id="e"></p>
-        -->
         <script>
           
 /*
@@ -47,8 +47,8 @@ menu.left = window.innerHeight * widthFactor;
 
 const eps = 1 / 1000000;
 
-const gameHeight = 10 ** 12;
-const gameWidth = gameHeight * main.width / main.height;
+var gameHeight = 10 ** 12;
+var gameWidth = gameHeight * main.width / main.height;
 var scaleFactor = main.height / gameHeight;
 var screenX = 0;
 var screenY = 0;
@@ -116,6 +116,22 @@ function scale() {
     ctxMain.resetTransform();
     ctxMain.scale(scaleFactor, scaleFactor);
     ctxMain.translate(-screenX, -screenY);
+}
+
+function zoom(factor, x, y) {
+  document.getElementById("p").innerHTML = x + ", " + y;
+  if (x == undefined) {
+    x = screenX + gameWidth / 2;
+  }
+  if (y == undefined) {
+    y = screenY + gameHeight / 2;
+  }
+  document.getElementById("q").innerHTML = x + ", " + y;
+  scaleFactor *= factor;
+  gameWidth *= factor;
+  gameHeight *= factor;
+  screenX = (screenX - x) / factor + x;
+  screenY = (screenY - y) / factor + y;
 }
 
 function dist(x1, y1, x2, y2) {
@@ -976,25 +992,28 @@ function MenuValue(n, title, get, set) {
 }
 
 function setup() {
-  settingValues.push(new MenuValue(0, "G", () => (G), function(G1) {
+  settingValues.push(new MenuValue(0, "height", () => (gameHeight), function(height) {
+    zoom(gameHeight / height);
+  }));
+  settingValues.push(new MenuValue(1, "G", () => (G), function(G1) {
     G = G1;
   }));
-  settingValues.push(new MenuValue(1, "gx", () => (gx), function(gx1) {
+  settingValues.push(new MenuValue(2, "gx", () => (gx), function(gx1) {
     gx = gx1;
   }));
-  settingValues.push(new MenuValue(2, "gy", () => (gy), function(gy1) {
+  settingValues.push(new MenuValue(3, "gy", () => (gy), function(gy1) {
     gy = gy1;
   }));
-  settingValues.push(new MenuValue(3, "frict", () => (friction), function(frict) {
+  settingValues.push(new MenuValue(4, "frict", () => (friction), function(frict) {
     friction = frict;
   }));
-  settingValues.push(new MenuValue(4, "rest", () => (restitution), function(rest) {
+  settingValues.push(new MenuValue(5, "rest", () => (restitution), function(rest) {
     restitution = rest;
   }));
-  settingValues.push(new MenuValue(5, "wFrict", () => (wallFriction), function(wFrict) {
+  settingValues.push(new MenuValue(6, "wFrict", () => (wallFriction), function(wFrict) {
     wallFriction = wFrict;
   }));
-  settingValues.push(new MenuValue(6, "wRest", () => (wallRestitution), function(wRest) {
+  settingValues.push(new MenuValue(7, "wRest", () => (wallRestitution), function(wRest) {
     wallRestitution = wRest;
   }));
   
@@ -1176,14 +1195,10 @@ gameLoopId = setInterval(() => {
         screenY -= main.height / scaleFactor / 5 * rawMaindt;
     }
     if (pressedKeys.includes("=") || pressedKeys.includes("+")) {
-        scaleFactor *= 2 ** rawMaindt;
-        screenX = (screenX - mouseX) / 2 ** rawMaindt + mouseX;
-        screenY = (screenY - mouseY) / 2 ** rawMaindt + mouseY;
+        zoom(2 ** rawMaindt, mouseX, mouseY);
     }
     if (pressedKeys.includes("-") || pressedKeys.includes("_")) {
-        scaleFactor /= 2 ** rawMaindt;
-        screenX = (screenX - mouseX) * 2 ** rawMaindt + mouseX;
-        screenY = (screenY - mouseY) * 2 ** rawMaindt + mouseY;
+        zoom(2 ** (-rawMaindt), mouseX, mouseY);
     }
     if (pressedKeys.includes(".") || pressedKeys.includes(">")) {
         speed *= 2 ** rawMaindt;
