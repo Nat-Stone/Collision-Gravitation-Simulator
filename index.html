@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-    <title>Gravitation Simulator</title>
+    <title>Physics Simulator</title>
     <body>
         <style>
             body {
@@ -15,17 +15,34 @@
         </style>
         
         <canvas id="main"></canvas>
-        <!--
+        <canvas id="menu"></canvas>
+        <!---->
         <p id="p"></p>
         <p id="q"></p>
         <p id="e"></p>
-        -->
+        <!---->
         <script>
+          
+/*
+notes:
+this version has all instances of "*****" replaced with "but" + "t"
+
+todo: 
+fix wall lists
+*/
+
+const widthFactor = 4 / 5;
 
 const main = document.getElementById("main");
 const ctxMain = main.getContext("2d");
-main.width = window.innerWidth;
+main.width = window.innerWidth * widthFactor;
 main.height = window.innerHeight;
+
+const menu = document.getElementById("menu");
+const ctxMenu = menu.getContext("2d");
+menu.width = window.innerWidth * (1 - widthFactor);
+menu.height = window.innerHeight;
+menu.left = window.innerHeight * widthFactor;
 
 const eps = 1 / 1000000;
 
@@ -62,7 +79,7 @@ var wallX2 = null;
 var wallY2 = null;
 var wallA = null;
 var dragType = "b";
-var dragMode = true;
+var dragMode = undefined;
 var dragObj = null;
 var dragOffsetX = 0;
 var dragOffsetY = 0;
@@ -76,16 +93,20 @@ var pressedKeys = [];
 
 var walls = [];
 var balls = [];
+var G = 6.67 * 10 ** -11;
 var gx = 0;
 var gy = 0;
-var G = 6.67 * 10 ** -11;
-var wallRestitution = 0.98;
-var wallFriction = 0.2;
-var restitution = 0.98;
 var friction = 0.2;
+var restitution = 0.99;
+var wallFriction = 0.2;
+var wallRestitution = 0.99;
 var collide = true;
 var push = true;
 var bounded = false;
+var inValue = false;
+
+const settingValues = [];
+const objValues = [];
 
 function scale() {
     ctxMain.resetTransform();
@@ -133,6 +154,14 @@ function average(arr) {
     }
 }
 
+function truncate(num) {
+  if (num == 0) {
+    return 0;
+  }
+  let zeros = Math.floor(Math.log10(Math.abs(num)))
+  return Math.round(num / 10 ** (zeros - 2)) / 100 + "e" + (zeros > 0 ? "+" : "") + zeros;
+}
+
 function drawRectWall(x1, y1, x2, y2, size, color) {
     scale();
     ctxMain.translate(x1, y1);
@@ -147,7 +176,7 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color) {
     scale();
     ctxMain.strokeStyle = color;
     ctxMain.lineWidth = Math.abs(r2 - r1);
-    ctxMain.lineCap = "butt";
+    ctxMain.lineCap = "but" + "t";
     ctxMain.beginPath();
     ctxMain.arc(x, y, (r1 + r2) / 2, a1, a2);
     ctxMain.stroke();
@@ -371,7 +400,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     this.update1 = function() {
         //object gravity
         for (b of balls) {
-            if (b != this && b != dragObj && !this.collided.includes(b)) {
+            if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
                 this.forceBall(b);
             }
         }
@@ -399,7 +428,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
         //collisions
         if (collide) {
             for (b of balls) {
-                if (b != this && b != dragObj && !this.collided.includes(b)) {
+                if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
                     this.collideBall(b);
                 }
             }
@@ -820,9 +849,152 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     }
 }
 
-/*var startX = 0;
-var startY = 0;
-var startTime = 0;*/
+function MenuValue(n, title, get, set) {
+  this.n = n;
+  this.title = title;
+  this.rawGet = get;
+  this.rawSet = set;
+  
+  this.x = menu.width / 2;
+  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.rawsx = menu.width * 4 / 5;
+  this.rawsy = menu.width / 4;
+  
+  this.hoverFactor = 1.08
+  
+  this.hovered = false;
+  this.clicked = false;
+  this.value = 0;
+  this.digit = 0;
+  this.sign = 1;
+  this.eMode = false;
+  this.eValue = 0;
+  this.eSign = 1;
+  
+  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = "13px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.get(), this.x, this.y);
+  }
+  
+  this.get = () => (title + ": " + (truncate(this.clicked ? this.sign * this.value * 10 ** (this.eSign * this.eValue) : this.rawGet())));
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+  }
+  
+  this.click = function() {
+    this.clicked = true;
+    this.value = 0;
+    this.digit = 0;
+    this.sign = 1;
+    this.eMode = false;
+    this.eValue = 0;
+    this.eSign = 1;
+  }
+  
+  this.updateValue = function(num) {
+    if (num == "e") {
+      this.eMode = true;
+    } else if (this.eMode) {
+      if (!isNaN(+num) || (num == "-")) {
+        if (num == "-") {
+          this.eSign *= -1;
+        } else {
+          this.eValue = this.eValue * 10 + (+num);
+        }
+      }
+    } else if (!isNaN(+num) || (num == "-") || (num == "." && this.digit == 0)) {
+      if (num == "-") {
+        this.sign *= -1;
+      } else if (num == ".") {
+        this.digit = 1;
+      } else if (this.digit == 0) {
+        this.value = this.value * 10 + (+num);
+      } else {
+        this.value += num / 10 ** this.digit;
+        this.digit += 1;
+      }
+    }
+  }
+  
+  this.back = function() {
+    if (this.eMode) {
+      if (this.eValue == 0) {
+        this.eMode = false;
+        this.eSign = 1;
+      } else {
+        this.eValue = Math.floor(this.eValue / 10);
+      }
+    } else {
+      if (this.digit == 1) {
+        this.digit = 0;
+      } else if (this.digit == 0) {
+        this.value = Math.floor(this.value / 10);
+      } else {
+        this.digit -= 1;
+        this.value = Math.floor(this.value * 10 ** (1 + this.digit)) / 10 ** (1 + this.digit);
+      }
+    }
+  }
+  
+  this.esc = function() {
+    this.clicked = false;
+  }
+  
+  this.set = function() {
+    this.rawSet(this.sign * this.value * 10 ** (this.eSign * this.eValue));
+    this.clicked = false;
+  }
+}
+
+function setup() {
+  settingValues.push(new MenuValue(0, "G", () => (G), function(G1) {
+    G = G1;
+  }));
+  settingValues.push(new MenuValue(1, "gx", () => (gx), function(gx1) {
+    gx = gx1;
+  }));
+  settingValues.push(new MenuValue(2, "gy", () => (gy), function(gy1) {
+    gy = gy1;
+  }));
+  settingValues.push(new MenuValue(3, "frict", () => (friction), function(frict) {
+    friction = frict;
+  }));
+  settingValues.push(new MenuValue(4, "rest", () => (restitution), function(rest) {
+    restitution = rest;
+  }));
+  settingValues.push(new MenuValue(5, "wFrict", () => (wallFriction), function(wFrict) {
+    wallFriction = wFrict;
+  }));
+  settingValues.push(new MenuValue(6, "wRest", () => (wallRestitution), function(wRest) {
+    wallRestitution = wRest;
+  }));
+  
+  objValues.push(new MenuValue(0, "mass", () => (dragObj.mass), function(mass) {
+    dragObj.mass = mass;
+  }));
+  objValues.push(new MenuValue(1, "size", () => (dragObj.size), function(size) {
+    dragObj.size = size;
+  }));
+  objValues.push(new MenuValue(2, "vx", () => (dragObj.vx), function(vx) {
+    dragObj.vx = vx;
+  }));
+  objValues.push(new MenuValue(3, "vy", () => (dragObj.vy), function(vy) {
+    dragObj.vy = vy;
+  }));
+  objValues.push(new MenuValue(4, "va", () => (dragObj.va), function(va) {
+    dragObj.va = va;
+  }));
+}
 
 function start() {
   //balls.push(new Ball(px, py, pa, vx, vy, va, mass, size, color));
@@ -836,28 +1008,28 @@ function start() {
 
 function update() {
     for (b of balls) {
-        if (b == dragObj) {
+        if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
             b.update1();
         }
     }
     for (b of balls) {
-        if (b == dragObj) {
+        if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
             b.update2();
         }
     }
     for (b of balls) {
-        if (b == dragObj) {
+        if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
             b.update3();
         }
     }
     for (b of balls) {
-        if (b == dragObj) {
+        if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
             b.update4();
@@ -896,7 +1068,7 @@ function show() {
                 }
                 let a1 = angle(wallX1, wallY1, wallX2, wallY2);
                 let a2 = a1 + wallA;
-                if (Math.abs(wallA) < minDrag / scaleFactor || Math.abs(wallA) >= Math.PI * 2) {
+                if (Math.abs(wallA) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(wallA) >= Math.PI * 2) {
                     a2 = a1 + (wallA >= 0 ? 1 : -1) * Math.PI * 2;
                 }
                 drawCircleWall(wallX1, wallY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
@@ -913,7 +1085,7 @@ function show() {
                 scale();
                 ctxMain.strokeStyle = newColor;
                 ctxMain.lineWidth = 2 / scaleFactor;
-                ctxMain.lineCap = "butt";
+                ctxMain.lineCap = "but" + "t";
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1, wallY1);
                 ctxMain.lineTo(mouseX, mouseY);
@@ -923,7 +1095,7 @@ function show() {
                 scale();
                 ctxMain.strokeStyle = newColor;
                 ctxMain.lineWidth = 2 / scaleFactor;
-                ctxMain.lineCap = "butt";
+                ctxMain.lineCap = "but" + "t";
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1, wallY1);
                 ctxMain.lineTo(mouseX, mouseY);
@@ -933,7 +1105,7 @@ function show() {
                 scale();
                 ctxMain.strokeStyle = newColor;
                 ctxMain.lineWidth = 2 / scaleFactor;
-                ctxMain.lineCap = "butt";
+                ctxMain.lineCap = "but" + "t";
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1[0], wallY1[0])
                 for (let n = 1; n < wallX1.length; n++) {
@@ -945,8 +1117,19 @@ function show() {
     }
 }
 
+function showMenu() {
+  ctxMenu.fillStyle = "#1f0f6f";
+  ctxMenu.fillRect(0, 0, menu.width, menu.height);
+  
+  for (v of (dragObj == null ? settingValues : objValues)) {
+    v.show();
+  }
+}
+
+setup();
 start();
 show();
+showMenu();
 
 gameLoopId = setInterval(() => {
     
@@ -1004,7 +1187,7 @@ gameLoopId = setInterval(() => {
     
     if (dragObj != null) {
         if (dragObj.wallType == undefined) {
-            if (dragMode) {
+            if (dragMode == true) {
                 dragObj.px = mouseX + dragOffsetX;
                 dragObj.py = mouseY + dragOffsetY;
                 dragvx.push(mouseX - pmouseX);
@@ -1015,7 +1198,7 @@ gameLoopId = setInterval(() => {
                 if (dragvy.length > dragVFrames) {
                     dragvy.shift();
                 }
-            } else {
+            } else if (dragMode == false) {
                 dragObj.pa = angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA;
                 let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pmouseX, pmouseY);
                 if (va > Math.PI) {
@@ -1027,11 +1210,11 @@ gameLoopId = setInterval(() => {
                 }
             }
         } else {
-            if (dragMode) {
+            if (dragMode != false) {
                 dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
                 dragOffsetX = -mouseX;
                 dragOffsetY = -mouseY;
-            } else {
+            } else if (dragMode == false) {
                 dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA);
                 dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
             }
@@ -1042,6 +1225,7 @@ gameLoopId = setInterval(() => {
     if (updateNum == upf) {
         updateNum = 0;
         show();
+        showMenu();
     }
     
     /*let energy = 0;
@@ -1151,7 +1335,8 @@ function createCircleWall() {
     }
     let a1 = angle(wallX1, wallY1, wallX2, wallY2);
     let a2 = a1 + wallA;
-    if (Math.abs(wallA) < minDrag / scaleFactor || Math.abs(wallA) >= Math.PI * 2) {
+    
+    if (Math.abs(wallA) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(wallA) >= Math.PI * 2) {
         a2 = a1 + (wallA >= 0 ? 1 : -1) * Math.PI * 2;
     }
     walls.push(new CircleWall(wallX1, wallY1, Math.min(r1, r2), Math.max(r1, r2), Math.min(a1, a2), Math.max(a1, a2), newColor));
@@ -1174,25 +1359,31 @@ function createWallList() {
     wallY2 = null;
 }
 
-function drag() {
+function drag(mode) {
     if (dragObj.wallType == undefined) {
-        if (dragMode) {
+      if (mode) {
+        if (dragMode == true) {
+            dragOffsetX = dragObj.px - mouseX;
+            dragOffsetY = dragObj.py - mouseY;
+        } else if (dragMode == false) {
+            dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
+        }
+      } else {
+        if (dragMode == true) {
             dragObj.px = mouseX + dragOffsetX;
             dragObj.py = mouseY + dragOffsetY;
             dragObj.vx = average(dragvx) / maindt;
             dragObj.vy = average(dragvy) / maindt;
-            dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
-        } else {
+        } else if (dragMode == false) {
             dragObj.pa = angle(b.px, b.py, mouseX, mouseY) + dragOffsetA;
             dragObj.va = average(dragva) / maindt;
-            dragOffsetX = dragObj.px - mouseX;
-            dragOffsetY = dragObj.py - mouseY;
         }
+      }
     } else {
-        if (dragMode) {
+        if (dragMode != false) {
             dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
             dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
-        } else {
+        } else if (dragMode == false) {
             dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA);
             dragOffsetX = -mouseX;
             dragOffsetY = -mouseY;
@@ -1233,6 +1424,10 @@ function checkClick() {
         }
     } else if (dragObj != null) {
         drag();
+        inValue = false;
+        for (v of objValues) {
+          v.esc();
+        }
         dragObj = null;
     } else {
         return false;
@@ -1241,6 +1436,7 @@ function checkClick() {
 }
 
 document.onmousemove = function(event) {
+    
     pmouseX = mouseX;
     pmouseY = mouseY;
     mouseX = event.clientX / scaleFactor + screenX;
@@ -1260,67 +1456,97 @@ document.onmousemove = function(event) {
             wallY1.push(mouseY);
         }
     }
+    
+    for (v of (dragObj == null ? settingValues : objValues)) {
+      v.updateHover(event.clientX - main.width, event.clientY);
+    }
 }
 
 document.onmousedown = function(event) {
     
-    mouseX = event.clientX / scaleFactor + screenX;
-    mouseY = event.clientY / scaleFactor + screenY;
-    mouseDownX = mouseX;
-    mouseDownY = mouseY;
-    
-    if (!checkClick()) {
-        for (b of balls) {
-            if (b.containsPoint(mouseX, mouseY)) {
-                dragObj = b;
-                if (dragMode) {
-                    dragOffsetX = dragObj.px - mouseX;
-                    dragOffsetY = dragObj.py - mouseY;
-                    dragvx = [];
-                    dragvy = [];
-                } else {
-                    dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
-                    dragva = [];
-                }
-            }
+    if (event.clientX < main.width) {
+      
+      mouseX = event.clientX / scaleFactor + screenX;
+      mouseY = event.clientY / scaleFactor + screenY;
+      mouseDownX = mouseX;
+      mouseDownY = mouseY;
+      
+      if (!checkClick()) {
+          for (b of balls) {
+              if (b.containsPoint(mouseX, mouseY)) {
+                  inValue = false;
+                  for (v of settingValues) {
+                    v.esc();
+                  }
+                  dragObj = b;
+                  if (dragMode == true) {
+                      dragOffsetX = dragObj.px - mouseX;
+                      dragOffsetY = dragObj.py - mouseY;
+                      dragvx = [];
+                      dragvy = [];
+                  } else if (dragMode == false) {
+                      dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
+                      dragva = [];
+                  }
+              }
+          }
+          
+          if (dragObj == null) {
+              for (w of walls) {
+                  if (w.containsPoint(mouseX, mouseY)) {
+                      for (v of (settingValues)) {
+                        v.esc();
+                      }
+                      dragObj = w;
+                      if (dragMode != false) {
+                          dragOffsetX = -mouseX;
+                          dragOffsetY = -mouseY;
+                      } else if (dragMode == false) {
+                          dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
+                      }
+                  }
+              }
+          }
+          
+          if (dragObj == null) {
+              switch (dragType) {
+                  case "b":
+                      ballX = mouseX;
+                      ballY = mouseY;
+                      break;
+                  case "c":
+                  case "w":
+                      wallX1 = mouseX;
+                      wallY1 = mouseY;
+                      break;
+                  case "l":
+                      wallX1 = [mouseX];
+                      wallY1 = [mouseY];
+                      break;
+              }
+          }
+      }
+    } else {
+      inValue = false;
+      for (w of (dragObj == null ? settingValues : objValues)) {
+        w.esc();
+      }
+      for (v of (dragObj == null ? settingValues : objValues)) {
+        v.updateHover(event.clientX - main.width, event.clientY);
+        if (v.hovered) {
+          inValue = true;
+          v.click();
+          break;
         }
-        
-        if (dragObj == null) {
-            for (w of walls) {
-                if (w.containsPoint(mouseX, mouseY)) {
-                    dragObj = w;
-                    if (dragMode) {
-                        dragOffsetX = -mouseX;
-                        dragOffsetY = -mouseY;
-                    } else {
-                        dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
-                    }
-                }
-            }
-        }
-        
-        if (dragObj == null) {
-            switch (dragType) {
-                case "b":
-                    ballX = mouseX;
-                    ballY = mouseY;
-                    break;
-                case "c":
-                case "w":
-                    wallX1 = mouseX;
-                    wallY1 = mouseY;
-                    break;
-                case "l":
-                    wallX1 = [mouseX];
-                    wallY1 = [mouseY];
-                    break;
-            }
-        }
+      }
     }
-    
 }
 
 document.onmouseup = function(event) {
+    
+    if (event.clientX >= main.width) {
+      return;
+    }
     
     mouseX = event.clientX / scaleFactor + screenX;
     mouseY = event.clientY / scaleFactor + screenY;
@@ -1336,116 +1562,188 @@ document.onmouseup = function(event) {
 
 document.onkeydown = function(event) {
     
-    if (!pressedKeys.includes(event.key.toLowerCase())) {
-      pressedKeys.push(event.key.toLowerCase());
-    }
+    if (inValue) {
+      switch (event.key.toLowerCase()) {
+          case "0":
+          case "1":
+          case "2":
+          case "3":
+          case "4":
+          case "5":
+          case "6":
+          case "7":
+          case "8":
+          case "9":
+          case "-":
+          case ".":
+          case "e":
+              for (v of (dragObj == null ? settingValues : objValues)) {
+                if (v.clicked) {
+                  v.updateValue(event.key);
+                }
+              }
+              break;
+          case "backspace":
+              for (v of (dragObj == null ? settingValues : objValues)) {
+                if (v.clicked) {
+                  v.back();
+                }
+              }
+              break;
+          case "enter":
+              for (v of (dragObj == null ? settingValues : objValues)) {
+                if (v.clicked) {
+                  inValue = false;
+                  v.set();
+                }
+              }
+              break;
+          case "escape":
+              for (v of (dragObj == null ? settingValues : objValues)) {
+                if (v.clicked) {
+                  inValue = false;
+                  v.esc();
+                }
+              }
+              break;
+      }
+      
+    } else {
     
-    switch (event.key.toLowerCase()) {
-        case "a":
-            if (dragMode) {
-                if (dragObj != null) {
-                    drag();
-                }
-                dragMode = false;
-            }
-            break;
-        case "b":
-            if (dragType != "b") {
-                dragType = "b";
-                if (wallX1 != null) {
-                    ballX = wallX1;
-                    ballY = wallY1;
-                    wallX1 = null;
-                    wallY1 = null;
-                    wallX2 = null;
-                    wallY2 = null;
-                }
-            }
-            break;
-        case "c":
-            if (dragType != "c") {
-                dragType = "c";
-                if (ballX != null) {
-                    wallX1 = ballX;
-                    wallY1 = ballY;
-                    wallX2 = null;
-                    wallY2 = null;
-                    ballX = null;
-                    ballY = null;
-                }
-            }
-            break;
-        case "d":
-            if (dragObj != null) {
-                if (dragObj.wallType == undefined) {
-                    balls.splice(balls.indexOf(dragObj), 1);
-                } else {
-                    walls.splice(balls.indexOf(dragObj), 1);
-                }
-                dragObj = null;
-            } else if (ballX != null) {
-                ballX = null;
-                ballY = null;
-            } else if (wallX1 != null) {
-                wallX1 = null;
-                wallY1 = null;
-                wallX2 = null;
-                wallY2 = null;
-            }
-            break;
-        case "l":
-            if (dragType != "l") {
-                dragType = "l";
-                wallX1 = null;
-                wallY1 = null;
-                wallX2 = null;
-                wallY2 = null;
-                ballX = null;
-                ballY = null;
-            }
-            break;
-        case "p":
-            ptime = Date.now();
-            paused = !paused;
-            break;
-        case "r":
-            if (balls.length == 0) {
-                walls = [];
-            }
-            balls = [];
-            dragObj = null;
-            break;
-        case "u":
-            dt = speed / fps / upf;
-            update();
-            break;
-        case "w":
-            if (dragType != "w") {
-                dragType = "w";
-                if (ballX != null) {
-                    wallX1 = ballX;
-                    wallY1 = ballY;
-                    wallX2 = null;
-                    wallY2 = null;
-                    ballX = null;
-                    ballY = null;
-                }
-            }
-            break;
+      if (!pressedKeys.includes(event.key.toLowerCase())) {
+        pressedKeys.push(event.key.toLowerCase());
+      }
+      
+      switch (event.key.toLowerCase()) {
+          case "a":
+              if (dragMode == undefined) {
+                  dragMode = false;
+                  if (dragObj != null) {
+                      drag(true);
+                  }
+              }
+              break;
+          case "b":
+              if (dragType != "b") {
+                  dragType = "b";
+                  if (wallX1 != null) {
+                      ballX = wallX1;
+                      ballY = wallY1;
+                      wallX1 = null;
+                      wallY1 = null;
+                      wallX2 = null;
+                      wallY2 = null;
+                  }
+              }
+              break;
+          case "c":
+              if (dragType != "c") {
+                  dragType = "c";
+                  if (ballX != null) {
+                      wallX1 = ballX;
+                      wallY1 = ballY;
+                      wallX2 = null;
+                      wallY2 = null;
+                      ballX = null;
+                      ballY = null;
+                  }
+              }
+              break;
+          case "r":
+              if (balls.length == 0) {
+                  walls = [];
+              }
+              balls = [];
+              inValue = false;
+              for (v of objValues) {
+                v.esc();
+              }
+              dragObj = null;
+          case "d":
+              if (dragObj != null) {
+                  if (dragObj.wallType == undefined) {
+                      balls.splice(balls.indexOf(dragObj), 1);
+                  } else {
+                      walls.splice(balls.indexOf(dragObj), 1);
+                  }
+                  inValue = false;
+                  for (v of objValues) {
+                    v.esc();
+                  }
+                  dragObj = null;
+              } else if (ballX != null) {
+                  ballX = null;
+                  ballY = null;
+              } else if (wallX1 != null) {
+                  wallX1 = null;
+                  wallY1 = null;
+                  wallX2 = null;
+                  wallY2 = null;
+              }
+              break;
+          case "l":
+              if (dragType != "l") {
+                  dragType = "l";
+                  wallX1 = null;
+                  wallY1 = null;
+                  wallX2 = null;
+                  wallY2 = null;
+                  ballX = null;
+                  ballY = null;
+              }
+              break;
+          case "m":
+              if (dragMode == undefined) {
+                  dragMode = true;
+                  if (dragObj != null) {
+                      drag(true);
+                  }
+              }
+              break;
+          case "p":
+              ptime = Date.now();
+              paused = !paused;
+              break;
+          case "u":
+              dt = speed / fps / upf;
+              update();
+              break;
+          case "w":
+              if (dragType != "w") {
+                  dragType = "w";
+                  if (ballX != null) {
+                      wallX1 = ballX;
+                      wallY1 = ballY;
+                      wallX2 = null;
+                      wallY2 = null;
+                      ballX = null;
+                      ballY = null;
+                  }
+              }
+              break;
+      }
     }
     
 }
 
 document.onkeyup = function(event) {
   
-    pressedKeys.splice(pressedKeys.indexOf(event.key.toLowerCase()), 1);
+    if (pressedKeys.includes(event.key.toLowerCase())) {
+      pressedKeys.splice(pressedKeys.indexOf(event.key.toLowerCase()), 1);
+    }
     
     switch (event.key.toLowerCase()) {
         case "a":
             if (dragObj != null) {
-                drag();
+                drag(false);
             }
-            dragMode = true;
+            dragMode = undefined;
+            break;
+        case "m":
+            if (dragObj != null) {
+                drag(false);
+            }
+            dragMode = undefined;
             break;
     }
     
