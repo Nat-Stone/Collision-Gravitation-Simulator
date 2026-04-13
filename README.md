@@ -6,6 +6,12 @@ Positive directions are right and down
 Press "r" to reset
   Press "r" once to remove all balls
   Press "r" twice (or when there are no balls) to remove all walls
+Click arrows, "+", "-", "<", and ">" to control the simulation
+  Click arrows to move the veiwpoint
+  Click "-" to zoom out
+  Click "+" to zoom in
+  Click "<" to slow down the simulation
+  Click ">" to speed up the simulation (high speeds will increase simulation error)
 Click menu items to change their value
   Enter numbers and ".", toggle "-", and press "e" (for scientific notation) to enter values
   Press backspace to delete
@@ -23,3 +29,10 @@ Click objects to view their states
   Release "m" to transfer position and velocity
   Press "a" to rotate selected objects
   Release "a" to transfer angular position and velocity
+  Click object in menu to center on it
+  "G" is the universal gravitational constant
+  "gx" and "gy" are the vector components of the uniform gravitation force
+  "frict" is the friction coefficient between balls
+  "rest" is the coefficient of restitution between balls
+  "wFrict" is the friction coefficient between balls and walls
+  "wRest" is the coefficient of restitution between balls and walls
