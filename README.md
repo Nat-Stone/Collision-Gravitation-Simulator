@@ -1,5 +1,5 @@
 # Physics-Simulator
-This physics simulator is capable of simulating rigid collisions and gravitation, with related constants such as little g, big G, friction, and restitution being adjustable variables in an in-simulation menu. Dynamic, circular objects and immovable rectangular, circular, and custom walls are supported.
+This physics simulator is capable of simulating rigid collisions and gravitation, with related constants such as little g, big G, friction, and restitution being adjustable variables in an in-simulation menu. Dynamic balls and immovable rectangular, circular, and custom walls are supported.
 
 The default system is the Earth orbitting our Sun, with the actual values for G, the masses, and the distances.
 Positive directions are right and down.
