@@ -23,13 +23,16 @@ Click to create new objects depending on chosen mode.
   Press "c" for circular wall mode.
   Press "l" for custom (list) wall mode.
   Press "d" to cancel creation.
+  Hold "shift" to avoid selecting an existing object or align angles to 15° increments.
   Creation color will constantly, randomly change during creation.
 Click objects to view their states.
   Press "m" to move selected objects.
   Release "m" to transfer position and velocity.
   Press "a" to rotate selected objects.
   Release "a" to transfer angular position and velocity.
+  Hold "shift" to align angles to 15° increments.
   Click the object in the menu to center on it.
+  "speed" is the speed of the simulation.
   "height" is the in-simulation height of the screen (the width will automatically adjust).
   "G" is the universal gravitational constant.
   "gx" and "gy" are the vector components of the uniform gravitation force.
