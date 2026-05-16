@@ -119,7 +119,9 @@ var push = true;
 var bounded = false;
 var inValue = false;
 var ballHovered = false;
+var menuType = true;
 
+const presetValues = [];
 const settingValues = [];
 const objValues = [];
 
@@ -922,6 +924,157 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     }
 }
 
+function Preset(title, settings, create) {
+  this.title = title;
+  this.settings = settings;
+  this.create = create;
+  
+  this.set = function() {
+    dragObj = null;
+    balls = [];
+    walls = [];
+    
+    if (settings.speed != undefined) {
+      speed = settings.speed;
+    }
+    if (settings.height != undefined) {
+      zoom(settings.height / gameHeight);
+    }
+    if (settings.G != undefined) {
+      G = settings.G;
+    }
+    if (settings.gx != undefined) {
+      gx = settings.gx;
+    }
+    if (settings.gy != undefined) {
+      gy = settings.gy;
+    }
+    if (settings.frict != undefined) {
+      friction = settings.frict;
+    }
+    if (settings.rest != undefined) {
+      restitution = settings.rest;
+    }
+    if (settings.wFrict != undefined) {
+      wallFriction = settings.wFrict;
+    }
+    if (settings.wRest != undefined) {
+      wallRestitution = settings.wRest;
+    }
+    if (settings.collide != undefined) {
+      collide = settings.collide;
+    }
+    
+    create(); //this.create was undefined, idk why
+  }
+}
+
+function MenuButton(n, title, click) {
+  this.n = n;
+  this.title = title;
+  this.click = click;
+  
+  this.x = menu.width / 2;
+  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.rawsx = menu.width * 4 / 5;
+  this.rawsy = menu.width / 4;
+  
+  this.hoverFactor = 1.08
+  
+  this.hovered = false;
+  this.clicked = false;
+  
+  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.title, this.x, this.y);
+  }
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+  }
+}
+
+function MenuPreset(n, preset) {
+  this.n = n;
+  this.preset = preset;
+  
+  this.x = menu.width / 2;
+  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.rawsx = menu.width * 4 / 5;
+  this.rawsy = menu.width / 4;
+  
+  this.hoverFactor = 1.08
+  
+  this.hovered = false;
+  this.clicked = false;
+  
+  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.preset.title, this.x, this.y);
+  }
+  
+  this.click = preset.set;
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+  }
+}
+
+function MenuToggle(n, title, get, click) {
+  this.n = n;
+  this.title = title;
+  this.rawGet = get;
+  this.click = click;
+  
+  this.x = menu.width / 2;
+  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.rawsx = menu.width * 4 / 5;
+  this.rawsy = menu.width / 4;
+  
+  this.hoverFactor = 1.08
+  
+  this.hovered = false;
+  this.clicked = false;
+  
+  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.get(), this.x, this.y);
+  }
+  
+  this.get = () => (title + ": " + (this.rawGet() ? "on" : "off"));
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+  }
+}
+
 function MenuValue(n, title, get, set) {
   this.n = n;
   this.title = title;
@@ -1036,62 +1189,116 @@ function MenuValue(n, title, get, set) {
 
 function setup() {
   
-  settingValues.push(new MenuValue(0, "speed", () => (speed), function(speed1) {
+  presetValues.push(new MenuButton(presetValues.length, "settings", function() {
+    menuType = false;
+  }));
+  presetValues.push(new MenuPreset(presetValues.length, new Preset("small", {
+    "speed": 1,
+    "height": 10,
+    "G": 0,
+    "gx": 0,
+    "gy": 9.8,
+    "frict": 0.2,
+    "rest": 0.99,
+    "wFrict": 0.2,
+    "wRest": 0.99,
+    "collide": true
+  }, function() {})));
+  presetValues.push(new MenuPreset(presetValues.length, new Preset("large", {
+    "speed": 365 * 86400 / 10,
+    "height": 10 ** 12,
+    "G": 6.67 * 10 ** -11,
+    "gx": 0,
+    "gy": 0,
+    "frict": 0.2,
+    "rest": 0.99,
+    "wFrict": 0.2,
+    "wRest": 0.99,
+    "collide": true
+  }, function() {})));
+  presetValues.push(new MenuPreset(presetValues.length, new Preset("box", {
+    "speed": 1,
+    "height": 12,
+    "G": 0,
+    "gx": 0,
+    "gy": 9.8,
+    "frict": 0.2,
+    "rest": 0.99,
+    "wFrict": 0.2,
+    "wRest": 0.99,
+    "collide": true
+  }, function() {
+    let height = 10;
+    let width = 12 * main.width / main.height - 2;
+    let thick = 1;
+    walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, "#000000"));
+    walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, "#000000"));
+    walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, "#000000"));
+    walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, "#000000"));
+  })));
+  presetValues.push(new MenuPreset(presetValues.length, new Preset("orbit", {
+    "speed": 365 * 86400 / 10,
+    "height": 10 ** 12,
+    "G": 6.67 * 10 ** -11,
+    "gx": 0,
+    "gy": 0,
+    "frict": 0.2,
+    "rest": 0.99,
+    "wFrict": 0.2,
+    "wRest": 0.99,
+    "collide": true
+  }, function() {
+    balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
+    balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
+  })));
+  
+  settingValues.push(new MenuButton(settingValues.length, "presets", function() {
+    menuType = true;
+  }));
+  settingValues.push(new MenuValue(settingValues.length, "speed", () => (speed), function(speed1) {
     speed = speed1;
   }));
-  settingValues.push(new MenuValue(1, "height", () => (gameHeight), function(height) {
-        zoom(height / gameHeight);
-    /*if (height > 0) {
-      if (height >= gameHeight) {
-        while (height > gameHeight * 2) {
-          zoom(2);
-        }
-        zoom(height / gameHeight);
-      } else {
-        while (height * 2 < gameHeight) {
-          zoom(1/2);
-    document.getElementById("p").innerHTML += " -> " + gameHeight + ", " + (height * 2 < gameHeight);
-        }
-        zoom(height / gameHeight);
-    document.getElementById("p").innerHTML += " | " + gameHeight + ", " + scaleFactor;
-      }
-    }*/
+  settingValues.push(new MenuValue(settingValues.length, "height", () => (gameHeight), function(height) {
+    zoom(height / gameHeight);
   }));
-  settingValues.push(new MenuValue(2, "G", () => (G), function(G1) {
+  settingValues.push(new MenuValue(settingValues.length, "G", () => (G), function(G1) {
     G = G1;
   }));
-  settingValues.push(new MenuValue(3, "gx", () => (gx), function(gx1) {
+  settingValues.push(new MenuValue(settingValues.length, "gx", () => (gx), function(gx1) {
     gx = gx1;
   }));
-  settingValues.push(new MenuValue(4, "gy", () => (gy), function(gy1) {
+  settingValues.push(new MenuValue(settingValues.length, "gy", () => (gy), function(gy1) {
     gy = gy1;
   }));
-  settingValues.push(new MenuValue(5, "frict", () => (friction), function(frict) {
-    friction = frict;
+  settingValues.push(new MenuValue(settingValues.length, "frict", () => (friction), function(friction1) {
+    friction = friction1;
   }));
-  settingValues.push(new MenuValue(6, "rest", () => (restitution), function(rest) {
-    restitution = rest;
+  settingValues.push(new MenuValue(settingValues.length, "rest", () => (restitution), function(restitution1) {
+    restitution = restitution1;
   }));
-  settingValues.push(new MenuValue(7, "wFrict", () => (wallFriction), function(wFrict) {
-    wallFriction = wFrict;
+  settingValues.push(new MenuValue(settingValues.length, "wFrict", () => (wallFriction), function(wallFriction1) {
+    wallFriction = wallFriction1;
   }));
-  settingValues.push(new MenuValue(8, "wRest", () => (wallRestitution), function(wRest) {
-    wallRestitution = wRest;
+  settingValues.push(new MenuValue(settingValues.length, "wRest", () => (wallRestitution), function(wallRestitution1) {
+    wallRestitution = wallRestitution1;
+  }));
+  settingValues.push(new MenuToggle(settingValues.length, "collide", () => (collide), function() {
+    collide = !collide;
   }));
   
-  objValues.push(new MenuValue(2, "mass", () => (dragObj.mass), function(mass) {
+  objValues.push(new MenuValue(objValues.length + 2, "mass", () => (dragObj.mass), function(mass) {
     dragObj.mass = mass;
   }));
-  objValues.push(new MenuValue(3, "size", () => (dragObj.size), function(size) {
+  objValues.push(new MenuValue(objValues.length + 2, "size", () => (dragObj.size), function(size) {
     dragObj.size = size;
   }));
-  objValues.push(new MenuValue(4, "vx", () => (dragObj.vx), function(vx) {
+  objValues.push(new MenuValue(objValues.length + 2, "vx", () => (dragObj.vx), function(vx) {
     dragObj.vx = vx;
   }));
-  objValues.push(new MenuValue(5, "vy", () => (dragObj.vy), function(vy) {
+  objValues.push(new MenuValue(objValues.length + 2, "vy", () => (dragObj.vy), function(vy) {
     dragObj.vy = vy;
   }));
-  objValues.push(new MenuValue(6, "va", () => (dragObj.va), function(va) {
+  objValues.push(new MenuValue(objValues.length + 2, "va", () => (dragObj.va), function(va) {
     dragObj.va = va;
   }));
   
@@ -1100,13 +1307,18 @@ function setup() {
 }
 
 function start() {
+  
+  
   //balls.push(new Ball(px, py, pa, vx, vy, va, mass, size, color));
+  
+  /*
   balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
   balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
   
-  //balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-  //balls.push(new Ball(gameWidth / 2 + 3 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-  //balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
+  balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
+  balls.push(new Ball(gameWidth / 2 + 3 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
+  balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
+  */
 }
 
 function update() {
@@ -1244,7 +1456,7 @@ function showMenu() {
   
   if (dragObj == null) {
     ctxMenu.resetTransform();
-    for (v of settingValues) {
+    for (v of (menuType ? presetValues : settingValues)) {
       v.show();
     }
   } else if (dragObj.wallType == undefined) {
@@ -1266,29 +1478,31 @@ gameLoopId = setInterval(() => {
     
     rawMaindt = (Date.now() - mainPTime) / 1000;
     
-    if (pressedKeys.includes("arrowright")) {
-        shift(main.width / scaleFactor / 5 * rawMaindt, 0);
-    }
-    if (pressedKeys.includes("arrowleft")) {
-        shift(- main.width / scaleFactor / 5 * rawMaindt, 0);
-    }
-    if (pressedKeys.includes("arrowdown")) {
-        shift(0, main.height / scaleFactor / 5 * rawMaindt);
-    }
-    if (pressedKeys.includes("arrowup")) {
-        shift(0, - main.height / scaleFactor / 5 * rawMaindt);
-    }
-    if (pressedKeys.includes("=") || pressedKeys.includes("+")) {
-        zoom(2 ** (-rawMaindt), mouseX, mouseY);
-    }
-    if (pressedKeys.includes("-") || pressedKeys.includes("_")) {
-        zoom(2 ** rawMaindt, mouseX, mouseY);
-    }
-    if (pressedKeys.includes(".") || pressedKeys.includes(">")) {
-        speed *= 2 ** rawMaindt;
-    }
-    if (pressedKeys.includes(",") || pressedKeys.includes("<")) {
-        speed /= 2 ** rawMaindt;
+    if (!inValue) {
+      if (pressedKeys.includes("arrowright")) {
+          shift(main.width / scaleFactor / 5 * rawMaindt, 0);
+      }
+      if (pressedKeys.includes("arrowleft")) {
+          shift(- main.width / scaleFactor / 5 * rawMaindt, 0);
+      }
+      if (pressedKeys.includes("arrowdown")) {
+          shift(0, main.height / scaleFactor / 5 * rawMaindt);
+      }
+      if (pressedKeys.includes("arrowup")) {
+          shift(0, - main.height / scaleFactor / 5 * rawMaindt);
+      }
+      if (pressedKeys.includes("=") || pressedKeys.includes("+")) {
+          zoom(2 ** (-rawMaindt), mouseX, mouseY);
+      }
+      if (pressedKeys.includes("-") || pressedKeys.includes("_")) {
+          zoom(2 ** rawMaindt, mouseX, mouseY);
+      }
+      if (pressedKeys.includes(".") || pressedKeys.includes(">")) {
+          speed *= 2 ** rawMaindt;
+      }
+      if (pressedKeys.includes(",") || pressedKeys.includes("<")) {
+          speed /= 2 ** rawMaindt;
+      }
     }
     
     maindt = rawMaindt * speed;
@@ -1620,7 +1834,7 @@ document.onmousemove = function(event) {
     
     updateBallHover();
     
-    for (v of (dragObj == null ? settingValues : objValues)) {
+    for (v of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
     }
     
@@ -1670,7 +1884,7 @@ document.onkeydown = function(event) {
             }
             break;
         case "escape":
-            for (v of (dragObj == null ? settingValues : objValues)) {
+            for (v of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
               if (v.clicked) {
                 inValue = false;
                 v.esc();
@@ -1839,8 +2053,12 @@ main.onmousedown = function(event) {
         if (dragObj == null) {
             for (w of walls) {
                 if (w.containsPoint(mouseX, mouseY)) {
-                    for (v of (settingValues)) {
-                      v.esc();
+                    if (inValue) {
+                      for (v of (menuType ? presetValues : settingValues)) {
+                        if (v.clicked) {
+                          v.esc();
+                        }
+                      }
                     }
                     dragObj = w;
                     if (dragMode == true) {
@@ -1896,15 +2114,19 @@ main.onmouseup = function(event) {
 
 menu.onmousedown = function(event) {
   
-    inValue = false;
-    for (w of (dragObj == null ? settingValues : objValues)) {
-      w.esc();
+    if (inValue) {
+      inValue = false;
+      for (w of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
+        if (w.clicked) {
+          w.esc();
+        }
+      }
     }
-    for (v of (dragObj == null ? settingValues : objValues)) {
+    for (v of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
       if (v.hovered) {
-        inValue = true;
         v.click();
+        inValue = v.clicked;
         break;
       }
     }
