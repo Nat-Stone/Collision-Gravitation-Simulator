@@ -13,7 +13,7 @@
                 float: left;
             }
             
-            .scroll {
+            #scroll {
               position: absolute;
               left: 80%;
               overflow: scroll;
@@ -22,7 +22,7 @@
         </style>
         
         <canvas id="main"></canvas>
-        <div class="scroll">
+        <div id="scroll">
           <canvas id="menu"></canvas>
         </div>
         
@@ -175,9 +175,13 @@ function angMod(a) {
     }
 }
 
-function align(x1, y1, x2, y2) {
+function alignAngle(a) {
+  return Math.round(a * 12 / Math.PI) * Math.PI / 12;
+}
+
+function alignLine(x1, y1, x2, y2) {
   r = dist(x1, y1, x2, y2)
-  a = Math.round(angle(x1, y1, x2, y2) * 12 / Math.PI) * Math.PI / 12;
+  a = alignAngle(angle(x1, y1, x2, y2));
   return [x1 + r * Math.cos(a), y1 + r * Math.sin(a)];
 }
 
@@ -281,6 +285,7 @@ function RectWall(x1, y1, x2, y2, size, color) {
     this.normalY2 = -this.normalX1;
     this.centerX = (this.x1 + this.x2 + this.normalX1 * this.size) / 2;
     this.centerY = (this.y1 + this.y2 + this.normalY1 * this.size) / 2;
+    this.angle = angle(this.x1, this.y1, this.x2, this.y2);
     
     this.show = function() {
         drawRectWall(this.x1, this.y1, this.x2, this.y2, this.size, this.color);
@@ -316,6 +321,7 @@ function RectWall(x1, y1, x2, y2, size, color) {
         this.y1 = this.centerY - (normalY1 * this.size - normalX1 * this.size2) / 2;
         this.x2 = this.centerX - (normalX1 * this.size - normalY1 * this.size2) / 2;
         this.y2 = this.centerY - (normalY1 * this.size + normalX1 * this.size2) / 2;
+        this.angle = angle(this.x1, this.y1, this.x2, this.y2);
     }
 }
 
@@ -340,6 +346,7 @@ function CircleWall(x, y, r1, r2, a1, a2, color) {
     this.normalY2 = this.ax2;
     this.centerX = x;
     this.centerY = y;
+    this.angle = this.a1;
     
     this.show = function() {
         drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
@@ -373,6 +380,8 @@ function CircleWall(x, y, r1, r2, a1, a2, color) {
         this.normalY1 = -this.ax1;
         this.normalX2 = -this.ay2;
         this.normalY2 = this.ax2;
+        
+        this.angle = this.a1;
     }
 }
 
@@ -399,6 +408,7 @@ function WallList(w, convert = false) {
         this.centerX = totalX / num;
         this.centerY = totalY / num;
     }
+    this.angle = 0;
     
     this.show = function() {
         for (w of this.walls) {
@@ -490,14 +500,16 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     this.update3 = function() {
         //collisions
         if (collide) {
-            for (b of balls) {
-                if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
-                    this.collideBall(b);
-                }
+          for (b of balls) {
+            if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
+              this.collideBall(b);
             }
+          }
         }
         for (w of walls) {
+          if (w != dragObj || dragMode == undefined) {
             this.collideWall(w);
+          }
         }
     }
     
@@ -705,20 +717,18 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     }
     
     this.collideWall = function(w) {
-        if (w != dragObj) {
-            switch (w.wallType) {
-                case "rect":
-                    this.collideRectWall(w);
-                    break;
-                case "circle":
-                    this.collideCircleWall(w);
-                    break;
-                case "list":
-                    for (w1 of w.walls) {
-                        this.collideWall(w1);
-                    }
-                    break;
-            }
+        switch (w.wallType) {
+            case "rect":
+                this.collideRectWall(w);
+                break;
+            case "circle":
+                this.collideCircleWall(w);
+                break;
+            case "list":
+                for (w1 of w.walls) {
+                    this.collideWall(w1);
+                }
+                break;
         }
     }
     
@@ -1165,7 +1175,7 @@ function show() {
                 let a1 = angle(wallX1, wallY1, wallX2, wallY2);
                 let a2;
                 if (pressedKeys.includes("shift")) {
-                  a2 = a1 + Math.round(wallA * 12 / Math.PI) * Math.PI / 12;
+                  a2 = alignAngle(a1 + wallA);
                 } else {
                   a2 = a1 + wallA;
                 }
@@ -1190,7 +1200,7 @@ function show() {
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1, wallY1);
                 if (pressedKeys.includes("shift")) {
-                  ctxMain.lineTo(...align(wallX1, wallY1, mouseX, mouseY));
+                  ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
                 } else {
                   ctxMain.lineTo(mouseX, mouseY);
                 }
@@ -1204,7 +1214,7 @@ function show() {
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1, wallY1);
                 if (pressedKeys.includes("shift")) {
-                  ctxMain.lineTo(...align(wallX1, wallY1, mouseX, mouseY));
+                  ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
                 } else {
                   ctxMain.lineTo(mouseX, mouseY);
                 }
@@ -1316,7 +1326,11 @@ gameLoopId = setInterval(() => {
                     dragvy.shift();
                 }
             } else if (dragMode == false) {
-                dragObj.pa = angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA;
+                if (pressedKeys.includes("shift")) {
+                  dragObj.pa = alignAngle(angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA);
+                } else {
+                  dragObj.pa = angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA;
+                }
                 let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pmouseX, pmouseY);
                 if (va > Math.PI) {
                     va -= Math.PI;
@@ -1327,13 +1341,16 @@ gameLoopId = setInterval(() => {
                 }
             }
         } else {
-            if (dragMode != false) {
+            if (dragMode == true) {
                 dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
                 dragOffsetX = -mouseX;
                 dragOffsetY = -mouseY;
             } else if (dragMode == false) {
-                dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA);
-                dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
+                if (pressedKeys.includes("shift")) {
+                  dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
+                } else {
+                  dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA - dragObj.angle);
+                }
             }
         }
     }
@@ -1458,7 +1475,7 @@ function createCircleWall() {
     let a1 = angle(wallX1, wallY1, wallX2, wallY2);
     let a2;
     if (pressedKeys.includes("shift")) {
-      a2 = a1 + Math.round(wallA * 12 / Math.PI) * Math.PI / 12;
+      a2 = alignAngle(a1 + wallA);
     } else {
       a2 = a1 + wallA;
     }
@@ -1506,14 +1523,20 @@ function drag(mode) {
         }
       }
     } else {
-        if (dragMode != false) {
-            dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
-            dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
+      if (mode) {
+        if (dragMode == true) {
+          dragOffsetX = -mouseX;
+          dragOffsetY = -mouseY;
         } else if (dragMode == false) {
-            dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA);
-            dragOffsetX = -mouseX;
-            dragOffsetY = -mouseY;
+          dragOffsetA = dragObj.angle - angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
         }
+      } else {
+        if (dragMode == true) {
+          dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
+        } else if (dragMode == false) {
+          dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA - dragObj.angle);
+        }
+      }
     }
 }
 
@@ -1545,7 +1568,7 @@ function checkClick() {
           }
         } else {
           if (pressedKeys.includes("shift")) {
-            aligned = align(wallX1, wallY1, mouseX, mouseY);
+            aligned = alignLine(wallX1, wallY1, mouseX, mouseY);
             wallX2 = aligned[0];
             wallY2 = aligned[1];
           } else {
@@ -1598,7 +1621,7 @@ document.onmousemove = function(event) {
     updateBallHover();
     
     for (v of (dragObj == null ? settingValues : objValues)) {
-      v.updateHover(event.clientX - main.width, event.clientY);
+      v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
     }
     
 }
@@ -1820,11 +1843,11 @@ main.onmousedown = function(event) {
                       v.esc();
                     }
                     dragObj = w;
-                    if (dragMode != false) {
+                    if (dragMode == true) {
                         dragOffsetX = -mouseX;
                         dragOffsetY = -mouseY;
                     } else if (dragMode == false) {
-                        dragOffsetA = -angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
+                        dragOffsetA = dragObj.angle - angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
                     }
                 }
             }
@@ -1878,7 +1901,7 @@ menu.onmousedown = function(event) {
       w.esc();
     }
     for (v of (dragObj == null ? settingValues : objValues)) {
-      v.updateHover(event.clientX - main.width, event.clientY);
+      v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
       if (v.hovered) {
         inValue = true;
         v.click();
