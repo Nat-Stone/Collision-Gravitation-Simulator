@@ -796,7 +796,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                 }
                 this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                 this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                this.newva.push(this.va + 4 * fVal / this.size * Math.sign(dist1));
+                this.newva.push(this.va - 4 * fVal / this.size);
             }
         }
         
