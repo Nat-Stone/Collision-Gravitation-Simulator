@@ -32,6 +32,7 @@ Click objects to view their states.
   Release "a" to transfer angular position and velocity.
   Hold "shift" to align angles to 15° increments.
   Click the object in the menu to center on it.
+Use "settings"/"presets" button to navigate menu.
   "speed" is the speed of the simulation.
   "height" is the in-simulation height of the screen (the width will automatically adjust).
   "G" is the universal gravitational constant.
@@ -40,4 +41,4 @@ Click objects to view their states.
   "rest" is the coefficient of restitution between balls.
   "wFrict" is the friction coefficient between balls and walls.
   "wRest" is the coefficient of restitution between balls and walls.
-
+  "collide" is whether or not balls collide with other balls.
