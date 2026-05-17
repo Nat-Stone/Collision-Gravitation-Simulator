@@ -58,23 +58,20 @@ menu.left = window.innerHeight * widthFactor;
 
 const eps = 1 / 1000000;
 
-var gameHeight = 10 ** 12;
+var gameHeight = 10;
 var gameWidth = gameHeight * main.width / main.height;
 var scaleFactor = main.height / gameHeight;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
 var upf = 4;
-var speed = 365 * 86400 / 10;
+var speed = 1;
 const dragVFrames = fps * upf / 10;
 const minDrag = 2;
 const wallListInc = 0.1;
-var ptime = Date.now();
-var dt = 0;
-var mainPTime = Date.now();
+var mainPTime = 0;
 var rawMaindt = 0;
 var maindt = 0;
-var updateNum = 0;
 
 var paused = false;
 var clientX = null;
@@ -101,29 +98,28 @@ var dragOffsetA = 0;
 var dragvx = [];
 var dragvy = [];
 var dragva = [];
-var pColorTime = Date.now();
+var pColorTime = 0;
 var newColor = randColor();
 var pressedKeys = [];
 
 var walls = [];
 var balls = [];
-var G = 6.67 * 10 ** -11;
+var G = 0;
 var gx = 0;
 var gy = 0;
-var friction = 0.2;
-var restitution = 0.99;
-var wallFriction = 0.2;
-var wallRestitution = 0.99;
+var friction = 0;
+var restitution = 1;
+var wallFriction = 0;
+var wallRestitution = 1;
 var collide = true;
 var push = true;
 var bounded = false;
 var inValue = false;
 var ballHovered = false;
-var menuType = true;
 
-const presetValues = [];
-const settingValues = [];
-const objValues = [];
+var menuType = "main";
+var menuValues = {};
+var objValues = [];
 
 function scale() {
     ctxMain.resetTransform();
@@ -151,6 +147,20 @@ function zoom(factor, x, y) {
   gameWidth *= factor;
   gameHeight *= factor;
   shift((screenX - x) * (factor - 1), (screenY - y) * (factor - 1));
+}
+
+function setMenuHeight() {
+  let num;
+  if (dragObj == null) {
+    num = menuValues[menuType].length
+  } else {
+    num = objValues.length + 2;
+  }
+  
+  menuHeight = Math.max(window.innerHeight, menu.width * (14 * num + 4) / 40);
+  if (menu.innerHeight != menuHeight) {
+    menu.innerHeight = menuHeight;
+  }
 }
 
 function dist(x1, y1, x2, y2) {
@@ -188,19 +198,19 @@ function alignLine(x1, y1, x2, y2) {
 }
 
 function average(arr) {
-    num = 0;
-    total = 0;
-    for (n of arr) {
-        if (!isNaN(n)) {
-            num += 1;
-            total += n;
-        }
-    }
-    if (num > 0) {
-        return total / num;
-    } else {
-        return false;
-    }
+  num = 0;
+  total = 0;
+  for (n of arr) {
+      if (!isNaN(n)) {
+          num += 1;
+          total += n;
+      }
+  }
+  if (num > 0) {
+      return total / num;
+  } else {
+      return false;
+  }
 }
 
 function truncate(num) {
@@ -472,16 +482,16 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
       this.py += dy;
     }
     
-    this.update1 = function() {
+    this.update1 = function(dt) {
         //object gravity
         for (b of balls) {
             if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
-                this.forceBall(b);
+                this.forceBall(b, dt);
             }
         }
     }
     
-    this.update2 = function() {
+    this.update2 = function(dt) {
         //gravity
         this.vx += gx * dt;
         this.vy += gy * dt;
@@ -499,7 +509,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
         this.collided = [];
     }
     
-    this.update3 = function() {
+    this.update3 = function(dt) {
         //collisions
         if (collide) {
           for (b of balls) {
@@ -515,15 +525,15 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
         }
     }
     
-    this.update4 = function() {
+    this.update4 = function(dt) {
         //apply
         let ave;
         if (push) {
-          ave = average(this.newpx);
+          ave = average(this.newpx);// * this.newpx.length - this.px * this.newpx.length + this.px;
           if (ave != false) {
               this.px = ave;
           }
-          ave = average(this.newpy);
+          ave = average(this.newpy);// * this.newpy.length - this.py * this.newpy.length + this.py;
           if (ave != false) {
               this.py = ave;
           }
@@ -628,7 +638,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
         }
       }
     
-    this.forceBall = function(b) {
+    this.forceBall = function(b, dt) {
         let distance = dist(this.px, this.py, b.px, b.py);
         let mag = G / distance ** 3 * dt;
         this.vx += mag * b.mass * (b.px - this.px);
@@ -1075,7 +1085,69 @@ function MenuToggle(n, title, get, click) {
   }
 }
 
-function MenuValue(n, title, get, set) {
+function MenuNumber(n, title, get, set) {
+  this.n = n;
+  this.title = title;
+  this.rawGet = get;
+  this.rawSet = set;
+  
+  this.x = menu.width / 2;
+  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.rawsx = menu.width * 4 / 5;
+  this.rawsy = menu.width / 4;
+  
+  this.hoverFactor = 1.08
+  
+  this.hovered = false;
+  this.clicked = false;
+  this.value = 0;
+  
+  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.get(), this.x, this.y);
+  }
+  
+  this.get = () => (title + ": " + (this.clicked ? this.value : this.rawGet()));
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+  }
+  
+  this.click = function() {
+    this.clicked = true;
+    this.value = 0;
+  }
+  
+  this.updateValue = function(num) {
+    if (!isNaN(+num)) {
+      this.value = this.value * 10 + (+num);
+    }
+  }
+  
+  this.back = function() {
+    this.value = Math.floor(this.value / 10);
+  }
+  
+  this.esc = function() {
+    this.clicked = false;
+  }
+  
+  this.set = function() {
+    this.rawSet(this.value);
+    this.clicked = false;
+  }
+}
+
+function MenuVar(n, title, get, set) {
   this.n = n;
   this.title = title;
   this.rawGet = get;
@@ -1141,17 +1213,15 @@ function MenuValue(n, title, get, set) {
           this.eValue = this.eValue * 10 + (+num);
         }
       }
-    } else if (!isNaN(+num) || (num == "-") || (num == "." && this.digit == 0)) {
-      if (num == "-") {
+    } else if (num == "-") {
         this.sign *= -1;
-      } else if (num == ".") {
+    } else if (num == "." && this.digit == 0) {
         this.digit = 1;
-      } else if (this.digit == 0) {
+    } else if (this.digit == 0) {
         this.value = this.value * 10 + (+num);
-      } else {
-        this.value += num / 10 ** this.digit;
-        this.digit += 1;
-      }
+    } else if (!isNaN(+num)) {
+      this.value += num / 10 ** this.digit;
+      this.digit += 1;
     }
   }
   
@@ -1187,122 +1257,232 @@ function MenuValue(n, title, get, set) {
   }
 }
 
+function MenuInfo(n, title, get) {
+  this.n = n;
+  this.title = title;
+  this.rawGet = get;
+  
+  this.x = menu.width / 2;
+  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.rawsx = menu.width * 4 / 5;
+  this.rawsy = menu.width / 4;
+  
+  this.hoverFactor = 1;
+  
+  this.hovered = false;
+  this.clicked = false;
+  
+  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.get(), this.x, this.y);
+  }
+  
+  this.get = () => (title + ": " + (truncate(this.rawGet())));
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+  }
+  
+  this.click = function() {}
+}
+
 function setup() {
   
-  presetValues.push(new MenuButton(presetValues.length, "settings", function() {
-    menuType = false;
-  }));
-  presetValues.push(new MenuPreset(presetValues.length, new Preset("small", {
-    "speed": 1,
-    "height": 10,
-    "G": 0,
-    "gx": 0,
-    "gy": 9.8,
-    "frict": 0.2,
-    "rest": 0.99,
-    "wFrict": 0.2,
-    "wRest": 0.99,
-    "collide": true
-  }, function() {})));
-  presetValues.push(new MenuPreset(presetValues.length, new Preset("large", {
-    "speed": 365 * 86400 / 10,
-    "height": 10 ** 12,
-    "G": 6.67 * 10 ** -11,
-    "gx": 0,
-    "gy": 0,
-    "frict": 0.2,
-    "rest": 0.99,
-    "wFrict": 0.2,
-    "wRest": 0.99,
-    "collide": true
-  }, function() {})));
-  presetValues.push(new MenuPreset(presetValues.length, new Preset("box", {
-    "speed": 1,
-    "height": 12,
-    "G": 0,
-    "gx": 0,
-    "gy": 9.8,
-    "frict": 0.2,
-    "rest": 0.99,
-    "wFrict": 0.2,
-    "wRest": 0.99,
-    "collide": true
-  }, function() {
-    let height = 10;
-    let width = 12 * main.width / main.height - 2;
-    let thick = 1;
-    walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, "#000000"));
-    walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, "#000000"));
-    walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, "#000000"));
-    walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, "#000000"));
-  })));
-  presetValues.push(new MenuPreset(presetValues.length, new Preset("orbit", {
-    "speed": 365 * 86400 / 10,
-    "height": 10 ** 12,
-    "G": 6.67 * 10 ** -11,
-    "gx": 0,
-    "gy": 0,
-    "frict": 0.2,
-    "rest": 0.99,
-    "wFrict": 0.2,
-    "wRest": 0.99,
-    "collide": true
-  }, function() {
-    balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-    balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
-  })));
+  menuValues.main = [
+    new MenuButton(0, "settings", function() {
+      menuType = "settings";
+    }),
+    new MenuButton(1, "presets", function() {
+      menuType = "presets";
+    }),
+    new MenuButton(2, "variables", function() {
+      menuType = "variables";
+    }),
+    new MenuButton(3, "info", function() {
+      menuType = "info";
+    }),
+  ];
   
-  settingValues.push(new MenuButton(settingValues.length, "presets", function() {
-    menuType = true;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "speed", () => (speed), function(speed1) {
-    speed = speed1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "height", () => (gameHeight), function(height) {
-    zoom(height / gameHeight);
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "G", () => (G), function(G1) {
-    G = G1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "gx", () => (gx), function(gx1) {
-    gx = gx1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "gy", () => (gy), function(gy1) {
-    gy = gy1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "frict", () => (friction), function(friction1) {
-    friction = friction1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "rest", () => (restitution), function(restitution1) {
-    restitution = restitution1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "wFrict", () => (wallFriction), function(wallFriction1) {
-    wallFriction = wallFriction1;
-  }));
-  settingValues.push(new MenuValue(settingValues.length, "wRest", () => (wallRestitution), function(wallRestitution1) {
-    wallRestitution = wallRestitution1;
-  }));
-  settingValues.push(new MenuToggle(settingValues.length, "collide", () => (collide), function() {
-    collide = !collide;
-  }));
+  menuValues.settings = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuNumber(1, "fps", () => (fps), function(fps1) {
+      fps = fps1;
+    }),
+    new MenuNumber(2, "upf", () => (upf), function(upf1) {
+      upf = upf1;
+    }),
+  ];
   
-  objValues.push(new MenuValue(objValues.length + 2, "mass", () => (dragObj.mass), function(mass) {
-    dragObj.mass = mass;
-  }));
-  objValues.push(new MenuValue(objValues.length + 2, "size", () => (dragObj.size), function(size) {
-    dragObj.size = size;
-  }));
-  objValues.push(new MenuValue(objValues.length + 2, "vx", () => (dragObj.vx), function(vx) {
-    dragObj.vx = vx;
-  }));
-  objValues.push(new MenuValue(objValues.length + 2, "vy", () => (dragObj.vy), function(vy) {
-    dragObj.vy = vy;
-  }));
-  objValues.push(new MenuValue(objValues.length + 2, "va", () => (dragObj.va), function(va) {
-    dragObj.va = va;
-  }));
+  menuValues.presets = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuPreset(1, new Preset("small", {
+      "speed": 1,
+      "height": 10,
+      "G": 0,
+      "gx": 0,
+      "gy": 9.8,
+      "frict": 0.2,
+      "rest": 0.99,
+      "wFrict": 0.2,
+      "wRest": 0.99,
+      "collide": true
+    }, function() {})),
+    new MenuPreset(2, new Preset("large", {
+      "speed": 365 * 86400 / 10,
+      "height": 10 ** 12,
+      "G": 6.67 * 10 ** -11,
+      "gx": 0,
+      "gy": 0,
+      "frict": 0.2,
+      "rest": 0.99,
+      "wFrict": 0.2,
+      "wRest": 0.99,
+      "collide": true
+    }, function() {})),
+    new MenuPreset(3, new Preset("box", {
+      "speed": 1,
+      "height": 12,
+      "G": 0,
+      "gx": 0,
+      "gy": 9.8,
+      "frict": 0.2,
+      "rest": 0.99,
+      "wFrict": 0.2,
+      "wRest": 0.99,
+      "collide": true
+    }, function() {
+      let height = 10;
+      let width = 12 * main.width / main.height - 2;
+      let thick = 1;
+      walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, "#000000"));
+      walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, "#000000"));
+      walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, "#000000"));
+      walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, "#000000"));
+    })),
+    new MenuPreset(4, new Preset("orbit", {
+      "speed": 365 * 86400 / 10,
+      "height": 10 ** 12,
+      "G": 6.67 * 10 ** -11,
+      "gx": 0,
+      "gy": 0,
+      "frict": 0.2,
+      "rest": 0.99,
+      "wFrict": 0.2,
+      "wRest": 0.99,
+      "collide": true
+    }, function() {
+      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
+      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
+    }))
+  ];
   
-  menu.height = Math.max(window.innerHeight, menu.width * (14 * settingValues.length + 4) / 40);
+  menuValues.variables = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuVar(1, "speed", () => (speed), function(speed1) {
+      speed = speed1;
+    }),
+    new MenuVar(2, "height", () => (gameHeight), function(height) {
+      zoom(height / gameHeight);
+    }),
+    new MenuVar(3, "G", () => (G), function(G1) {
+      G = G1;
+    }),
+    new MenuVar(4, "gx", () => (gx), function(gx1) {
+      gx = gx1;
+    }),
+    new MenuVar(5, "gy", () => (gy), function(gy1) {
+      gy = gy1;
+    }),
+    new MenuVar(6, "frict", () => (friction), function(friction1) {
+      friction = friction1;
+    }),
+    new MenuVar(7, "rest", () => (restitution), function(restitution1) {
+      restitution = restitution1;
+    }),
+    new MenuVar(8, "wFrict", () => (wallFriction), function(wallFriction1) {
+      wallFriction = wallFriction1;
+    }),
+    new MenuVar(9, "wRest", () => (wallRestitution), function(wallRestitution1) {
+      wallRestitution = wallRestitution1;
+    }),
+    new MenuToggle(10, "collide", () => (collide), function() {
+      collide = !collide;
+    })
+  ];
+  
+  menuValues.info = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuInfo(1, "px", function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * b.vx;
+      }
+      return total;
+    }),
+    new MenuInfo(2, "py", function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * b.vy;
+      }
+      return total;
+    }),
+    new MenuInfo(3, "kinetic", function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.mass * b.size ** 2 * b.va ** 2 / 16; // MOI
+      }
+      return total;
+    }),
+    new MenuInfo(4, "energy", function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.mass * b.size ** 2 * b.va ** 2 / 16 - b.mass * (gx * b.px + gy * b.py); // MOI
+        for (b1 of balls) {
+          if (b != b1) {
+            total -= G * b.mass * b1.mass / dist(b.px, b.py, b1.px, b1.py) / 2;
+          }
+        }
+      }
+      return total;
+    })
+  ];
+  
+  objValues = [
+    new MenuVar(2, "mass", () => (dragObj.mass), function(mass) {
+      dragObj.mass = mass;
+    }),
+    new MenuVar(3, "size", () => (dragObj.size), function(size) {
+      dragObj.size = size;
+    }),
+    new MenuVar(4, "vx", () => (dragObj.vx), function(vx) {
+      dragObj.vx = vx;
+    }),
+    new MenuVar(5, "vy", () => (dragObj.vy), function(vy) {
+      dragObj.vy = vy;
+    }),
+    new MenuVar(6, "va", () => (dragObj.va), function(va) {
+      dragObj.va = va;
+    })
+  ];
+  
+  setMenuHeight();
   
 }
 
@@ -1321,34 +1501,34 @@ function start() {
   */
 }
 
-function update() {
+function update(dt) {
     
     for (b of balls) {
         if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
-            b.update1();
+            b.update1(dt);
         }
     }
     for (b of balls) {
         if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
-            b.update2();
+            b.update2(dt);
         }
     }
     for (b of balls) {
         if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
-            b.update3();
+            b.update3(dt);
         }
     }
     for (b of balls) {
         if (b == dragObj && dragMode != undefined) {
             b.pa += b.va * dt;
         } else {
-            b.update4();
+            b.update4(dt);
         }
     }
     
@@ -1456,7 +1636,7 @@ function showMenu() {
   
   if (dragObj == null) {
     ctxMenu.resetTransform();
-    for (v of (menuType ? presetValues : settingValues)) {
+    for (v of menuValues[menuType]) {
       v.show();
     }
   } else if (dragObj.wallType == undefined) {
@@ -1469,14 +1649,11 @@ function showMenu() {
   
 }
 
-setup();
-start();
-show();
-showMenu();
-
-gameLoopId = setInterval(() => {
-    
-    rawMaindt = (Date.now() - mainPTime) / 1000;
+function frame(time) {
+  
+  rawMaindt = (time - mainPTime) / 1000;
+  
+  if (rawMaindt * fps > 0.9) {
     
     if (!inValue) {
       if (pressedKeys.includes("arrowright")) {
@@ -1508,22 +1685,12 @@ gameLoopId = setInterval(() => {
     maindt = rawMaindt * speed;
     
     if (maindt > 0) {
-        mainPTime = Date.now();
+        mainPTime = time;
     }
     
-    if (Date.now() - pColorTime > 500) {
+    if (time - pColorTime > 500) {
         newColor = randColor();
-        pColorTime = Date.now();
-    }
-    
-    if (!paused) {
-        dt = speed * (Date.now() - ptime) / 1000;
-        if (dt > 0) {
-            ptime = Date.now();
-            if (dt < 10 * speed / fps / upf) {
-                update();
-            }
-        }
+        pColorTime = time;
     }
     
     if (dragObj != null) {
@@ -1569,17 +1736,19 @@ gameLoopId = setInterval(() => {
         }
     }
     
-    menuHeight = Math.max(window.innerHeight, menu.width * (14 * settingValues.length + 4) / 40);
-    if (menu.innerHeight != menuHeight) {
-      menu.innerHeight = menuHeight;
+    if (!paused) {
+      let dt = rawMaindt * speed / upf;
+      if (dt > 0 && dt < 2 * speed / fps) {
+        for (let n = 0; n < upf; n++) {
+          update(dt);
+        }
+      }
     }
     
-    updateNum += 1;
-    if (updateNum == upf) {
-        updateNum = 0;
-        show();
-        showMenu();
-    }
+    setMenuHeight();
+    
+    show();
+    showMenu();
     
     /*let energy = 0;
     for (b of balls) {
@@ -1593,18 +1762,28 @@ gameLoopId = setInterval(() => {
     document.getElementById("e").innerHTML = energy;*/
     
     /*if (!paused && startTime == 0) {
-        startTime = Date.now();
+        startTime = time;
     }
     if (!paused && balls[0].py - startY >= 5) {
         this.paused = true;
-        let t = (Date.now() - startTime) / 1000;
+        let t = (time - startTime) / 1000;
         let d = dist(startX, startY, balls[0].px, balls[0].py);
         let e = 2 * d / t / t;
         let a = gy / 2;
         document.getElementById("p").innerHTML = "Time: " + t + ", Dist: " + d + ", Experimental: " + e + ", Actual: " + a;
     }*/
     
-}, 1000 / fps / upf);
+  }
+  
+  requestAnimationFrame(frame);
+  
+}
+
+setup();
+start();
+show();
+showMenu();
+frame();
 
 function wallListSize(x, y, mx, my) {
     //////use distance
@@ -1834,7 +2013,7 @@ document.onmousemove = function(event) {
     
     updateBallHover();
     
-    for (v of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
+    for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
     }
     
@@ -1862,21 +2041,21 @@ document.onkeydown = function(event) {
         case "-":
         case ".":
         case "e":
-            for (v of (dragObj == null ? settingValues : objValues)) {
+            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
               if (v.clicked) {
                 v.updateValue(event.key);
               }
             }
             break;
         case "backspace":
-            for (v of (dragObj == null ? settingValues : objValues)) {
+            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
               if (v.clicked) {
                 v.back();
               }
             }
             break;
         case "enter":
-            for (v of (dragObj == null ? settingValues : objValues)) {
+            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
               if (v.clicked) {
                 inValue = false;
                 v.set();
@@ -1884,7 +2063,7 @@ document.onkeydown = function(event) {
             }
             break;
         case "escape":
-            for (v of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
+            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
               if (v.clicked) {
                 inValue = false;
                 v.esc();
@@ -1973,12 +2152,10 @@ document.onkeydown = function(event) {
             }
             break;
         case "p":
-            ptime = Date.now();
             paused = !paused;
             break;
         case "u":
-            dt = speed / fps / upf;
-            update();
+            update(speed / fps / upf);
             break;
         case "w":
             if (dragType != "w") {
@@ -2054,7 +2231,7 @@ main.onmousedown = function(event) {
             for (w of walls) {
                 if (w.containsPoint(mouseX, mouseY)) {
                     if (inValue) {
-                      for (v of (menuType ? presetValues : settingValues)) {
+                      for (v of menuValues[menuType]) {
                         if (v.clicked) {
                           v.esc();
                         }
@@ -2116,13 +2293,13 @@ menu.onmousedown = function(event) {
   
     if (inValue) {
       inValue = false;
-      for (w of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
+      for (w of (dragObj == null ? menuValues[menuType] : objValues)) {
         if (w.clicked) {
           w.esc();
         }
       }
     }
-    for (v of (dragObj == null ? (menuType ? presetValues : settingValues) : objValues)) {
+    for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
       if (v.hovered) {
         v.click();
