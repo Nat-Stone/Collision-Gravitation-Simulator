@@ -38,7 +38,7 @@ Click balls to edit their states.
   "moi" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
   "vx" is the horizontal velocity of the ball.
   "vy" is the vertical velocity of the ball.
-  "va" is the angular velocity of the ball, with clockwise rotation being positive.
+  "va" is the angular velocity of the ball, with counterclockwise rotation being positive.
 Click "settings" to edit performance settings.
   "fps" is the maximum frames per second, which is also capped by browser refresh rate (usually 60).
   "upf" is the maximum number of simulation updates per frame.
@@ -67,4 +67,4 @@ Click "info" to view the simulation information.
   "px" is the total horizontal momentum of balls in the simulation.
   "py" is the total vertical momentum of balls in the simulation.
   "kinetic" is the total translational and rotational kinetic energy of balls in the simulation.
-  "energy" is the total energy of the simulation (translational kinetic, rotational kinetic, potential due to uniform gravity (relative to the top left of the screen), and potential due to gravity between balls).
+  "energy" is the total energy of the simulation (translational kinetic, rotational kinetic, potential due to uniform gravity (relative to the bottom left of the screen), and potential due to gravity between balls).
