@@ -64,9 +64,9 @@ var scaleFactor = main.height / gameHeight;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
-var upf = 4;
+var upf = 100;
 var speed = 1;
-const dragVFrames = fps * upf / 10;
+const dragVTime = 1 / 5;
 const minDrag = 2;
 const wallListInc = 0.1;
 var mainPTime = 0;
@@ -107,11 +107,16 @@ var balls = [];
 var G = 0;
 var gx = 0;
 var gy = 0;
-var friction = 0;
-var restitution = 1;
 var wallFriction = 0;
 var wallRestitution = 1;
+var ballFriction = 0;
+var ballRestitution = 1;
 var collide = true;
+var density = 1;
+var moiCoef = 1/2;
+var dragCoef0 = 0;
+var dragCoef1 = 0;
+var dragCoef2 = 0;
 var push = true;
 var bounded = false;
 var inValue = false;
@@ -120,6 +125,9 @@ var ballHovered = false;
 var menuType = "main";
 var menuValues = {};
 var objValues = [];
+
+//var utime = 0;
+//var unum = 0;
 
 function scale() {
     ctxMain.resetTransform();
@@ -152,14 +160,14 @@ function zoom(factor, x, y) {
 function setMenuHeight() {
   let num;
   if (dragObj == null) {
-    num = menuValues[menuType].length
+    num = menuValues[menuType].length;
   } else {
     num = objValues.length + 2;
   }
   
   menuHeight = Math.max(window.innerHeight, menu.width * (14 * num + 4) / 40);
   if (menu.innerHeight != menuHeight) {
-    menu.innerHeight = menuHeight;
+    menu.height = menuHeight;
   }
 }
 
@@ -201,15 +209,15 @@ function average(arr) {
   num = 0;
   total = 0;
   for (n of arr) {
-      if (!isNaN(n)) {
-          num += 1;
-          total += n;
-      }
+    if (!isNaN(n)) {
+      num += 1;
+      total += n;
+    }
   }
   if (num > 0) {
       return total / num;
   } else {
-      return false;
+      return null;
   }
 }
 
@@ -460,7 +468,7 @@ function WallList(w, convert = false) {
     }
 }
 
-function Ball(px, py, pa, vx, vy, va, mass, size, color) {
+function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
     this.px = px;
     this.py = py;
     this.pa = pa;
@@ -469,6 +477,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     this.va = va;
     this.mass = mass;
     this.size = size;
+    this.moiCoef = moiCoef;
     this.color = color;
     
     this.collided = [];
@@ -483,12 +492,13 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     }
     
     this.update1 = function(dt) {
-        //object gravity
-        for (b of balls) {
-            if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
-                this.forceBall(b, dt);
-            }
+      //object gravity
+      for (b of balls) {
+        if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
+          this.forceBall(b, dt);
         }
+      }
+      this.drag(dt);
     }
     
     this.update2 = function(dt) {
@@ -530,28 +540,28 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
         let ave;
         if (push) {
           ave = average(this.newpx);// * this.newpx.length - this.px * this.newpx.length + this.px;
-          if (ave != false) {
+          if (ave != null) {
               this.px = ave;
           }
           ave = average(this.newpy);// * this.newpy.length - this.py * this.newpy.length + this.py;
-          if (ave != false) {
+          if (ave != null) {
               this.py = ave;
           }
         }
         ave = average(this.newpa);
-        if (ave != false) {
+        if (ave != null) {
             this.pa = ave;
         }
         ave = average(this.newvx);
-        if (ave != false) {
+        if (ave != null) {
             this.vx = ave;
         }
         ave = average(this.newvy);
-        if (ave != false) {
+        if (ave != null) {
             this.vy = ave;
         }
         ave = average(this.newva);
-        if (ave != false) {
+        if (ave != null) {
             this.va = ave;
         }
         //walls
@@ -574,7 +584,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                   }
                   this.vx *= -wallRestitution;
                   this.vy -= fVal;
-                  this.va += 4 * fVal / this.size;
+                  this.va += fVal * this.mass * this.size / this.moi / 2;
               }
           }
           if (this.px > gameWidth - this.size / 2) {
@@ -593,7 +603,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                   }
                   this.vx *= -wallRestitution;
                   this.vy -= fVal;
-                  this.va -= 4 * fVal / this.size;
+                  this.va -= fVal * this.mass * this.size / this.moi / 2;
               }
           }
           if (this.py < this.size / 2) {
@@ -612,7 +622,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                   }
                   this.vy *= -wallRestitution;
                   this.vx -= fVal;
-                  this.va -= 4 * fVal / this.size;
+                  this.va -= fVal * this.mass * this.size / this.moi / 2;
               }
           }
           if (this.py > gameHeight - this.size / 2) {
@@ -631,12 +641,26 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                   }
                   this.vy *= -wallRestitution;
                   this.vx -= fVal;
-                  this.va += 4 * fVal / this.size;
+                  this.va += fVal * this.mass * this.size / this.moi / 2;
               }
           }
           this.collided = [];
         }
       }
+    
+    this.drag = function(dt) {
+      if ((this.vx != 0 || this.vy != 0) && (dragCoef0 != 0 || dragCoef1 != 0 || dragCoef2 != 0)) {
+        let vel = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        let mag = (dragCoef0 / vel + dragCoef1 + dragCoef2 * vel) * dt / this.mass;
+        if (mag < 1) {
+          this.vx -= mag * this.vx;
+          this.vy -= mag * this.vy;
+        } else {
+          this.vx = 0;
+          this.vy = 0;
+        }
+      }
+    }
     
     this.forceBall = function(b, dt) {
         let distance = dist(this.px, this.py, b.px, b.py);
@@ -646,7 +670,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
         b.vx += mag * this.mass * (this.px - b.px);
         b.vy += mag * this.mass * (this.py - b.py);
         b.collided.push(this);
-    }
+    } //gravity
     
     this.collideBall = function(b) {
         let sqDistance = sqdist(this.px, this.py, b.px, b.py);
@@ -684,7 +708,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
             sqDistance = sqdist(this.px, this.py, b.px, b.py);
             vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
             if (/*vDotp >= 0 && */!isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
-                let normalVelMag = (1 + restitution) / (this.mass + b.mass) * vDotp / sqDistance;
+                let normalVelMag = (1 + ballRestitution) / (this.mass + b.mass) * vDotp / sqDistance;
                 let normalVelX = normalVelMag * (b_pxCol - this_pxCol);
                 let normalVelY = normalVelMag * (b_pyCol - this_pyCol);
                 
@@ -694,16 +718,15 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                 let sideVelAng = sideVel / distance;
                 let sideVelX = sideVelAng * (this_pyCol - b_pyCol);
                 let sideVelY = sideVelAng * (b_pxCol - this_pxCol);
-                let frictionVelMag = 0;
+                let frictionVelMag;
                 if (sideVel > 0) {
-                    frictionVelMag = Math.min(sideVel / (this.mass + b.mass) / 3, friction * normalVelMag);
+                    frictionVelMag = Math.min(sideVel / (this.mass + b.mass) / 3, ballFriction * normalVelMag);
                 } else {
-                    frictionVelMag = Math.max(sideVel / (this.mass + b.mass) / 3, - friction * normalVelMag);
+                    frictionVelMag = Math.max(sideVel / (this.mass + b.mass) / 3, - ballFriction * normalVelMag);
                 }
                 let frictionVelAng = frictionVelMag / sideVel;
                 let frictionVelX = frictionVelAng * sideVelX;
                 let frictionVelY = frictionVelAng * sideVelY;
-                let frictionVelA = 4 * frictionVelMag;
                 
                 if (!isNaN(normalVelX + frictionVelX)) {
                     this.newvx.push(this.vx - b.mass * (normalVelX + frictionVelX));
@@ -713,9 +736,9 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                     this.newvy.push(this.vy - b.mass * (normalVelY + frictionVelY));
                     b.newvy.push(b.vy + this.mass * (normalVelY + frictionVelY));
                 }
-                if (!isNaN(frictionVelA)) {
-                    this.newva.push(this.va - b.mass * frictionVelA / this.size);
-                    b.newva.push(b.va - this.mass * frictionVelA / b.size);
+                if (!isNaN(frictionVelMag)) {
+                    this.newva.push(this.va - b.mass * frictionVelMag * this.mass * this.size / this.moi / 2);
+                    b.newva.push(b.va - this.mass * frictionVelMag * b.mass * b.size / b.moi / 2);
                 }
                 b.collided.push(this);
                 
@@ -780,7 +803,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                 }
                 this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalX2);
                 this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) - fVal * w.normalY2);
-                this.newva.push(this.va - 4 * fVal / this.size * Math.sign(dist1));
+                this.newva.push(this.va - Math.sign(dist1) * fVal * this.mass * this.size / this.moi / 2);
             } else if (2 * Math.abs(dist1) < w.size1) {
                 let fMax = Math.abs((1 + wallRestitution) * v2 * wallFriction);
                 let fVal = v1 / 3 - Math.sign(dist2) * this.va * this.size / 6;
@@ -789,7 +812,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                 }
                 this.newvx.push(this.vx - v2 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalX1);
                 this.newvy.push(this.vy - v2 * w.normalY2 * (1 + wallRestitution) - fVal * w.normalY1);
-                this.newva.push(this.va + 4 * fVal / this.size * Math.sign(dist2));
+                this.newva.push(this.va + Math.sign(dist2) * fVal * this.mass * this.size / this.moi / 2);
             } else {
                 let edgeDist1 = dist1 - Math.sign(dist1) * w.size1 / 2;
                 let edgeDist2 = dist2 - Math.sign(dist2) * w.size2 / 2;
@@ -806,7 +829,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                 }
                 this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                 this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                this.newva.push(this.va - 4 * fVal / this.size);
+                this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
             }
         }
         
@@ -879,7 +902,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                   }
                   this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                   this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                  this.newva.push(this.va - 4 * fVal / this.size);
+                  this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
               } else if (Math.abs(offset1 * 2 - this.size) <= eps || Math.abs(offset2 * 2 - this.size) <= eps) {
                   if (Math.abs(Math.PI - angDist1) >= Math.abs(Math.PI - angDist2)) {
                       v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
@@ -891,7 +914,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                       }
                       this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalY1);
                       this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) + fVal * w.normalX1);
-                      this.newva.push(this.va - 4 * fVal / this.size);
+                      this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
                   } else {
                       v1 = this.vx * w.normalX2 + this.vy * w.normalY2;
                       v2 = this.vx * w.normalY2 - this.vy * w.normalX2;
@@ -902,7 +925,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                       }
                       this.newvx.push(this.vx - v1 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalY2);
                       this.newvy.push(this.vy - v1 * w.normalY2 * (1 + wallRestitution) + fVal * w.normalX2);
-                      this.newva.push(this.va - 4 * fVal / this.size);
+                      this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
                   }
               } else {
                   let r = (2 * distance < w.r1 + w.r2 ? w.r1 : w.r2);
@@ -923,7 +946,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
                   }
                   this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                   this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                  this.newva.push(this.va - 4 * fVal / this.size * Math.sign(dist1));
+                  this.newva.push(this.va - Math.sign(dist1) * fVal * this.mass * this.size / this.moi / 2);
               }
           }
         }
@@ -932,6 +955,12 @@ function Ball(px, py, pa, vx, vy, va, mass, size, color) {
     this.containsPoint = function(x, y) {
         return sqdist(this.px, this.py, x, y) * 4 <= this.size * this.size;
     }
+    
+    this.updateMOI = function() {
+      this.moi = this.moiCoef * this.mass * this.size ** 2 / 4;
+    }
+    
+    this.updateMOI();
 }
 
 function Preset(title, settings, create) {
@@ -959,11 +988,11 @@ function Preset(title, settings, create) {
     if (settings.gy != undefined) {
       gy = settings.gy;
     }
-    if (settings.frict != undefined) {
-      friction = settings.frict;
+    if (settings.bFrict != undefined) {
+      ballFriction = settings.bFrict;
     }
-    if (settings.rest != undefined) {
-      restitution = settings.rest;
+    if (settings.bRest != undefined) {
+      ballRestitution = settings.bRest;
     }
     if (settings.wFrict != undefined) {
       wallFriction = settings.wFrict;
@@ -973,6 +1002,22 @@ function Preset(title, settings, create) {
     }
     if (settings.collide != undefined) {
       collide = settings.collide;
+    }
+    if (settings.drag0 != undefined) {
+      dragCoef0 = settings.drag0;
+    }
+    if (settings.drag1 != undefined) {
+      dragCoef1 = settings.drag1;
+    }
+    if (settings.drag2 != undefined) {
+      dragCoef2 = settings.drag2;
+    }
+    
+    if (settings.density != undefined) {
+      density = settings.density;
+    }
+    if (settings.moiCoef != undefined) {
+      moiCoef = settings.moiCoef;
     }
     
     create(); //this.create was undefined, idk why
@@ -1307,7 +1352,10 @@ function setup() {
     new MenuButton(2, "variables", function() {
       menuType = "variables";
     }),
-    new MenuButton(3, "info", function() {
+    new MenuButton(3, "defaults", function() {
+      menuType = "defaults";
+    }),
+    new MenuButton(4, "info", function() {
       menuType = "info";
     }),
   ];
@@ -1334,11 +1382,16 @@ function setup() {
       "G": 0,
       "gx": 0,
       "gy": 9.8,
-      "frict": 0.2,
-      "rest": 0.99,
       "wFrict": 0.2,
       "wRest": 0.99,
-      "collide": true
+      "bFrict": 0.2,
+      "bRest": 0.99,
+      "collide": true,
+      "drag0": 0,
+      "drag1": 0,
+      "drag2": 0,
+      "density": 1,
+      "moiCoef": 1/2
     }, function() {})),
     new MenuPreset(2, new Preset("large", {
       "speed": 365 * 86400 / 10,
@@ -1346,11 +1399,16 @@ function setup() {
       "G": 6.67 * 10 ** -11,
       "gx": 0,
       "gy": 0,
-      "frict": 0.2,
-      "rest": 0.99,
       "wFrict": 0.2,
       "wRest": 0.99,
-      "collide": true
+      "bFrict": 0.2,
+      "bRest": 0.99,
+      "collide": true,
+      "drag0": 0,
+      "drag1": 0,
+      "drag2": 0,
+      "density": 3 / 4 / 10 ** 6,
+      "moiCoef": 1/2
     }, function() {})),
     new MenuPreset(3, new Preset("box", {
       "speed": 1,
@@ -1358,11 +1416,16 @@ function setup() {
       "G": 0,
       "gx": 0,
       "gy": 9.8,
-      "frict": 0.2,
-      "rest": 0.99,
       "wFrict": 0.2,
       "wRest": 0.99,
-      "collide": true
+      "bFrict": 0.2,
+      "bRest": 0.99,
+      "collide": true,
+      "drag0": 0,
+      "drag1": 0,
+      "drag2": 0,
+      "density": 1,
+      "moiCoef": 1/2
     }, function() {
       let height = 10;
       let width = 12 * main.width / main.height - 2;
@@ -1378,14 +1441,19 @@ function setup() {
       "G": 6.67 * 10 ** -11,
       "gx": 0,
       "gy": 0,
-      "frict": 0.2,
-      "rest": 0.99,
       "wFrict": 0.2,
       "wRest": 0.99,
-      "collide": true
+      "bFrict": 0.2,
+      "bRest": 0.99,
+      "collide": true,
+      "drag0": 0,
+      "drag1": 0,
+      "drag2": 0,
+      "density": 3 / 4 / 10 ** 6,
+      "moiCoef": 1/2
     }, function() {
-      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
+      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, "red"));
+      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, "green"));
     }))
   ];
   
@@ -1408,20 +1476,41 @@ function setup() {
     new MenuVar(5, "gy", () => (gy), function(gy1) {
       gy = gy1;
     }),
-    new MenuVar(6, "frict", () => (friction), function(friction1) {
-      friction = friction1;
-    }),
-    new MenuVar(7, "rest", () => (restitution), function(restitution1) {
-      restitution = restitution1;
-    }),
-    new MenuVar(8, "wFrict", () => (wallFriction), function(wallFriction1) {
+    new MenuVar(6, "wFrict", () => (wallFriction), function(wallFriction1) {
       wallFriction = wallFriction1;
     }),
-    new MenuVar(9, "wRest", () => (wallRestitution), function(wallRestitution1) {
+    new MenuVar(7, "wRest", () => (wallRestitution), function(wallRestitution1) {
       wallRestitution = wallRestitution1;
+    }),
+    new MenuVar(8, "bFrict", () => (ballFriction), function(ballFriction1) {
+      ballFriction = ballFriction1;
+    }),
+    new MenuVar(9, "bRest", () => (ballRestitution), function(ballRestitution1) {
+      ballRestitution = ballRestitution1;
     }),
     new MenuToggle(10, "collide", () => (collide), function() {
       collide = !collide;
+    }),
+    new MenuVar(11, "drag0", () => (dragCoef0), function(dragCoef01) {
+      dragCoef0 = dragCoef01;
+    }),
+    new MenuVar(12, "drag1", () => (dragCoef1), function(dragCoef11) {
+      dragCoef1 = dragCoef11;
+    }),
+    new MenuVar(13, "drag2", () => (dragCoef2), function(dragCoef21) {
+      dragCoef2 = dragCoef21;
+    })
+  ];
+  
+  menuValues.defaults = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuVar(1, "density", () => (density), function(density1) {
+      density = density1;
+    }),
+    new MenuVar(2, "moi", () => (moiCoef), function(moiCoef1) {
+      moiCoef = moiCoef1;
     })
   ];
   
@@ -1446,17 +1535,19 @@ function setup() {
     new MenuInfo(3, "kinetic", function() {
       let total = 0;
       for (b of balls) {
-        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.mass * b.size ** 2 * b.va ** 2 / 16; // MOI
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2;
       }
       return total;
     }),
     new MenuInfo(4, "energy", function() {
       let total = 0;
       for (b of balls) {
-        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.mass * b.size ** 2 * b.va ** 2 / 16 - b.mass * (gx * b.px + gy * b.py); // MOI
-        for (b1 of balls) {
-          if (b != b1) {
-            total -= G * b.mass * b1.mass / dist(b.px, b.py, b1.px, b1.py) / 2;
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * b.px + gy * b.py);
+        if (G != 0) {
+          for (b1 of balls) {
+            if (b != b1) {
+              total -= G * b.mass * b1.mass / dist(b.px, b.py, b1.px, b1.py) / 2;
+            }
           }
         }
       }
@@ -1467,17 +1558,23 @@ function setup() {
   objValues = [
     new MenuVar(2, "mass", () => (dragObj.mass), function(mass) {
       dragObj.mass = mass;
+      dragObj.updateMOI();
     }),
     new MenuVar(3, "size", () => (dragObj.size), function(size) {
       dragObj.size = size;
+      dragObj.updateMOI();
     }),
-    new MenuVar(4, "vx", () => (dragObj.vx), function(vx) {
+    new MenuVar(4, "moi", () => (dragObj.moiCoef), function(moiCoef) {
+      dragObj.moiCoef = moiCoef;
+      dragObj.updateMOI();
+    }),
+    new MenuVar(5, "vx", () => (dragObj.vx), function(vx) {
       dragObj.vx = vx;
     }),
-    new MenuVar(5, "vy", () => (dragObj.vy), function(vy) {
+    new MenuVar(6, "vy", () => (dragObj.vy), function(vy) {
       dragObj.vy = vy;
     }),
-    new MenuVar(6, "va", () => (dragObj.va), function(va) {
+    new MenuVar(7, "va", () => (dragObj.va), function(va) {
       dragObj.va = va;
     })
   ];
@@ -1488,20 +1585,17 @@ function setup() {
 
 function start() {
   
-  
-  //balls.push(new Ball(px, py, pa, vx, vy, va, mass, size, color));
-  
-  /*
-  balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-  balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
-  
-  balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-  balls.push(new Ball(gameWidth / 2 + 3 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 2 * 10 ** 30, 4 * 10 ** 10, "red"));
-  balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, "green"));
-  */
 }
 
 function update(dt) {
+  
+  /*unum += 1;
+  if (Date.now() >= utime + 1000) {
+    document.getElementById("p").innerHTML = "djhgdsfihgfdidsgfsgddsfsdihgdsfhh | " + unum;
+    utime = Date.now();
+  document.getElementById("q").innerHTML = dt;
+    unum = 0;
+  }*/
     
     for (b of balls) {
         if (b == dragObj && dragMode != undefined) {
@@ -1699,11 +1793,11 @@ function frame(time) {
                 dragObj.px = mouseX + dragOffsetX;
                 dragObj.py = mouseY + dragOffsetY;
                 dragvx.push(mouseX - pmouseX);
-                if (dragvx.length > dragVFrames) {
+                if (dragvx.length > dragVTime * fps) {
                     dragvx.shift();
                 }
                 dragvy.push(mouseY - pmouseY);
-                if (dragvy.length > dragVFrames) {
+                if (dragvy.length > dragVTime * fps) {
                     dragvy.shift();
                 }
             } else if (dragMode == false) {
@@ -1717,7 +1811,7 @@ function frame(time) {
                     va -= Math.PI;
                 }
                 dragva.push(va);
-                if (dragva.length > dragVFrames) {
+                if (dragva.length > dragVTime * fps) {
                     dragva.shift();
                 }
             }
@@ -1749,29 +1843,6 @@ function frame(time) {
     
     show();
     showMenu();
-    
-    /*let energy = 0;
-    for (b of balls) {
-        energy += b.mass / 2 * (b.vx * b.vx + b.vy * b.vy + b.size * b.size * b.va * b.va / 8) + b.mass * (gx * (gameWidth - b.px) + gy * (gameHeight - b.py));
-    }
-    for (let n1 = 0; n1 < balls.length; n1++) {
-      for (let n2 = n1 + 1; n2 < balls.length; n2++) {
-        energy -= G * balls[n1].mass * balls[n2].mass / dist(balls[n1].px, balls[n1].py, balls[n2].px, balls[n2].py);
-      }
-    }
-    document.getElementById("e").innerHTML = energy;*/
-    
-    /*if (!paused && startTime == 0) {
-        startTime = time;
-    }
-    if (!paused && balls[0].py - startY >= 5) {
-        this.paused = true;
-        let t = (time - startTime) / 1000;
-        let d = dist(startX, startY, balls[0].px, balls[0].py);
-        let e = 2 * d / t / t;
-        let a = gy / 2;
-        document.getElementById("p").innerHTML = "Time: " + t + ", Dist: " + d + ", Experimental: " + e + ", Actual: " + a;
-    }*/
     
   }
   
@@ -1843,7 +1914,7 @@ function getWalls(l) {
 
 function createBall() {
     let newSize = 2 * dist(ballX, ballY, mouseX, mouseY);
-    balls.push(new Ball(ballX, ballY, angle(ballX, ballY, mouseX, mouseY), 0, 0, 0, newSize ** 3, newSize, newColor));
+    balls.push(new Ball(ballX, ballY, angle(ballX, ballY, mouseX, mouseY), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, newColor));
     
     ballX = null;
     ballY = null;
