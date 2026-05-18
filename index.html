@@ -27,9 +27,9 @@
         </div>
         
         <!--
-        <p id="p"></p>
-        <p id="q"></p>
-        <p id="e"></p>
+        <p id="p1"></p>
+        <p id="p2"></p>
+        <p id="p3"></p>
         -->
         <script>
           
@@ -66,7 +66,7 @@ var screenY = 0;
 var fps = 60;
 var upf = 100;
 var speed = 1;
-const dragVTime = 1 / 5;
+const dragVTime = 1 / 10;
 const minDrag = 2;
 const wallListInc = 0.1;
 var mainPTime = 0;
@@ -79,6 +79,8 @@ var clientY = null;
 var mouseX = null;
 var mouseY = null;
 var pmouseX = null;
+var pfmouseX = null;
+var pfmouseY = null;
 var pmouseY = null;
 var mouseDownX = null;
 var mouseDownY = null;
@@ -107,10 +109,10 @@ var balls = [];
 var G = 0;
 var gx = 0;
 var gy = 0;
-var wallFriction = 0;
-var wallRestitution = 1;
-var ballFriction = 0;
-var ballRestitution = 1;
+var wallFriction = 0.2;
+var wallRestitution = 0.99;
+var ballFriction = 0.2;
+var ballRestitution = 0.99;
 var collide = true;
 var density = 1;
 var moiCoef = 1/2;
@@ -130,9 +132,17 @@ var objValues = [];
 //var unum = 0;
 
 function scale() {
-    ctxMain.resetTransform();
-    ctxMain.scale(scaleFactor, scaleFactor);
-    ctxMain.translate(-screenX, -screenY);
+  ctxMain.resetTransform();
+  ctxMain.scale(scaleFactor, -scaleFactor);
+  ctxMain.translate(-screenX, -gameHeight - screenY);
+}
+
+function getMouseX(x) {
+  return x / scaleFactor + screenX;
+}
+
+function getMouseY(y) {
+  return gameHeight - y / scaleFactor + screenY;
 }
 
 function shift(dx, dy) {
@@ -663,6 +673,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
     }
     
     this.forceBall = function(b, dt) {
+      if (G != 0) {
         let distance = dist(this.px, this.py, b.px, b.py);
         let mag = G / distance ** 3 * dt;
         this.vx += mag * b.mass * (b.px - this.px);
@@ -670,6 +681,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         b.vx += mag * this.mass * (this.px - b.px);
         b.vy += mag * this.mass * (this.py - b.py);
         b.collided.push(this);
+      }
     } //gravity
     
     this.collideBall = function(b) {
@@ -1376,12 +1388,12 @@ function setup() {
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
-    new MenuPreset(1, new Preset("small", {
+    new MenuPreset(1, new Preset("empty", {
       "speed": 1,
       "height": 10,
       "G": 0,
       "gx": 0,
-      "gy": 9.8,
+      "gy": 0,
       "wFrict": 0.2,
       "wRest": 0.99,
       "bFrict": 0.2,
@@ -1393,7 +1405,24 @@ function setup() {
       "density": 1,
       "moiCoef": 1/2
     }, function() {})),
-    new MenuPreset(2, new Preset("large", {
+    new MenuPreset(2, new Preset("small", {
+      "speed": 1,
+      "height": 10,
+      "G": 0,
+      "gx": 0,
+      "gy": -9.8,
+      "wFrict": 0.2,
+      "wRest": 0.99,
+      "bFrict": 0.2,
+      "bRest": 0.99,
+      "collide": true,
+      "drag0": 0,
+      "drag1": 0,
+      "drag2": 0,
+      "density": 1,
+      "moiCoef": 1/2
+    }, function() {})),
+    new MenuPreset(3, new Preset("large", {
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
       "G": 6.67 * 10 ** -11,
@@ -1407,15 +1436,15 @@ function setup() {
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 3 / 4 / 10 ** 6,
+      "density": 10 ** -2,
       "moiCoef": 1/2
     }, function() {})),
-    new MenuPreset(3, new Preset("box", {
+    new MenuPreset(4, new Preset("box", {
       "speed": 1,
       "height": 12,
       "G": 0,
       "gx": 0,
-      "gy": 9.8,
+      "gy": -9.8,
       "wFrict": 0.2,
       "wRest": 0.99,
       "bFrict": 0.2,
@@ -1435,7 +1464,7 @@ function setup() {
       walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, "#000000"));
       walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, "#000000"));
     })),
-    new MenuPreset(4, new Preset("orbit", {
+    new MenuPreset(5, new Preset("orbit", {
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
       "G": 6.67 * 10 ** -11,
@@ -1449,7 +1478,7 @@ function setup() {
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 3 / 4 / 10 ** 6,
+      "density": 10 ** -2,
       "moiCoef": 1/2
     }, function() {
       balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, "red"));
@@ -1597,31 +1626,27 @@ function update(dt) {
     unum = 0;
   }*/
     
+    if (dragObj != null && dragMode == true) {
+      dragObj.pa += b.va * dt;
+    }
+    
     for (b of balls) {
-        if (b == dragObj && dragMode != undefined) {
-            b.pa += b.va * dt;
-        } else {
+        if (b != dragObj || dragMode == undefined) {
             b.update1(dt);
         }
     }
     for (b of balls) {
-        if (b == dragObj && dragMode != undefined) {
-            b.pa += b.va * dt;
-        } else {
+        if (b != dragObj || dragMode == undefined) {
             b.update2(dt);
         }
     }
     for (b of balls) {
-        if (b == dragObj && dragMode != undefined) {
-            b.pa += b.va * dt;
-        } else {
+        if (b != dragObj || dragMode == undefined) {
             b.update3(dt);
         }
     }
     for (b of balls) {
-        if (b == dragObj && dragMode != undefined) {
-            b.pa += b.va * dt;
-        } else {
+        if (b != dragObj || dragMode == undefined) {
             b.update4(dt);
         }
     }
@@ -1734,7 +1759,7 @@ function showMenu() {
       v.show();
     }
   } else if (dragObj.wallType == undefined) {
-    drawBall(menu.width / 2, menu.width * 2 / 5, dragObj.pa, menu.width * 3 / 5 * (ballHovered ? 1.08 : 1), dragObj.color, ctxMenu);
+    drawBall(menu.width / 2, menu.width * 2 / 5, -dragObj.pa, menu.width * 3 / 5 * (ballHovered ? 1.08 : 1), dragObj.color, ctxMenu);
     ctxMenu.resetTransform();
     for (v of objValues) {
       v.show();
@@ -1756,10 +1781,10 @@ function frame(time) {
       if (pressedKeys.includes("arrowleft")) {
           shift(- main.width / scaleFactor / 5 * rawMaindt, 0);
       }
-      if (pressedKeys.includes("arrowdown")) {
+      if (pressedKeys.includes("arrowup")) {
           shift(0, main.height / scaleFactor / 5 * rawMaindt);
       }
-      if (pressedKeys.includes("arrowup")) {
+      if (pressedKeys.includes("arrowdown")) {
           shift(0, - main.height / scaleFactor / 5 * rawMaindt);
       }
       if (pressedKeys.includes("=") || pressedKeys.includes("+")) {
@@ -1792,11 +1817,11 @@ function frame(time) {
             if (dragMode == true) {
                 dragObj.px = mouseX + dragOffsetX;
                 dragObj.py = mouseY + dragOffsetY;
-                dragvx.push(mouseX - pmouseX);
+                dragvx.push(mouseX - pfmouseX);
                 if (dragvx.length > dragVTime * fps) {
                     dragvx.shift();
                 }
-                dragvy.push(mouseY - pmouseY);
+                dragvy.push(mouseY - pfmouseY);
                 if (dragvy.length > dragVTime * fps) {
                     dragvy.shift();
                 }
@@ -1806,7 +1831,7 @@ function frame(time) {
                 } else {
                   dragObj.pa = angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA;
                 }
-                let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pmouseX, pmouseY);
+                let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pfmouseX, pfmouseY);
                 if (va > Math.PI) {
                     va -= Math.PI;
                 }
@@ -1845,6 +1870,9 @@ function frame(time) {
     showMenu();
     
   }
+  
+  pfmouseX = mouseX;
+  pfmouseY = mouseY;
   
   requestAnimationFrame(frame);
   
@@ -1972,18 +2000,21 @@ function drag(mode) {
         if (dragMode == true) {
             dragOffsetX = dragObj.px - mouseX;
             dragOffsetY = dragObj.py - mouseY;
+            dragvx = [];
+            dragvy = [];
         } else if (dragMode == false) {
             dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
+            dragva = [];
         }
       } else {
         if (dragMode == true) {
             dragObj.px = mouseX + dragOffsetX;
             dragObj.py = mouseY + dragOffsetY;
-            dragObj.vx = average(dragvx) / maindt;
-            dragObj.vy = average(dragvy) / maindt;
+            dragObj.vx = average(dragvx) / rawMaindt / speed;
+            dragObj.vy = average(dragvy) / rawMaindt / speed;
         } else if (dragMode == false) {
             dragObj.pa = angle(b.px, b.py, mouseX, mouseY) + dragOffsetA;
-            dragObj.va = average(dragva) / maindt;
+            dragObj.va = average(dragva) / rawMaindt / speed;
         }
       }
     } else {
@@ -2064,8 +2095,8 @@ document.onmousemove = function(event) {
     clientY = event.clientY;
     pmouseX = mouseX;
     pmouseY = mouseY;
-    mouseX = event.clientX / scaleFactor + screenX;
-    mouseY = event.clientY / scaleFactor + screenY;
+    mouseX = getMouseX(clientX);
+    mouseY = getMouseY(clientY);
     da = angle(wallX1, wallY1, mouseX, mouseY) - angle(wallX1, wallY1, pmouseX, pmouseY);
     if (Math.abs(da) > Math.PI) {
         da -= Math.sign(da) * Math.PI * 2;
@@ -2276,8 +2307,8 @@ main.onmousedown = function(event) {
   
   if (!inValue) {
   
-    mouseX = event.clientX / scaleFactor + screenX;
-    mouseY = event.clientY / scaleFactor + screenY;
+    mouseX = getMouseX(event.clientX);
+    mouseY = getMouseY(event.clientY);
     mouseDownX = mouseX;
     mouseDownY = mouseY;
     
@@ -2346,8 +2377,8 @@ main.onmouseup = function(event) {
     
   if (!inValue) {
     
-    mouseX = event.clientX / scaleFactor + screenX;
-    mouseY = event.clientY / scaleFactor + screenY;
+    mouseX = getMouseX(event.clientX);
+    mouseY = getMouseY(event.clientY);
     
     if (dist(mouseDownX, mouseDownY, mouseX, mouseY) >= minDrag / scaleFactor) {
         checkClick();
