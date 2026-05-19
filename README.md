@@ -30,7 +30,8 @@ Click objects to select and drag them.
   Release "m" to transfer position and velocity.
   Press "a" to rotate selected objects.
   Release "a" to transfer angular position and velocity.
-  Hold "shift" to align angles to 15° increments.
+  Hold "shift" to align positions and distances to set increments.
+  Hold "control" to align angles to set increments.
   Click the object in the menu to center on it.
 Click balls to edit their states.
   "mass" is the mass of the ball.
@@ -51,7 +52,7 @@ Click "presets" to select simulation presets.
   "orbit" has to balls with the masses and distances of the Earth orbitting the Sun.
   Click a preset to apply it.
   Shift-click a preset to edit its title.
-  Shift-backspace a preset while editting it to delete it.
+  Control-backspace a preset while editting it to delete it.
 Click "variables" to edit simulation settings.
   "speed" is the speed of the simulation.
   "height" is the in-simulation height of the screen (the width will automatically adjust).
@@ -68,6 +69,8 @@ Click "variables" to edit simulation settings.
 Click "defaults" to edit the ball creation defaults.
   "density" controls the mass of the created balls (mass = density * size³).
   "moi" controls the coefficient of the created ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
+  "distInc" is the increment applied when holding "shift".
+  "angInc" is the increment applied when holding "control".
 Click "info" to view the simulation information.
   "px" is the total horizontal momentum of balls in the simulation.
   "py" is the total vertical momentum of balls in the simulation.
