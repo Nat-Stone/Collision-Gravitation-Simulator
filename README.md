@@ -43,10 +43,15 @@ Click "settings" to edit performance settings.
   "fps" is the maximum frames per second, which is also capped by browser refresh rate (usually 60).
   "upf" is the maximum number of simulation updates per frame.
 Click "presets" to select simulation presets.
+  Click "save" to save the current simulation state as a preset.
+  "empty" is empty with no gravity.
   "small" is empty with downward gravity.
   "large" is empty with gravity between balls.
   "box" has box walls.
   "orbit" has to balls with the masses and distances of the Earth orbitting the Sun.
+  Click a preset to apply it.
+  Shift-click a preset to edit its title.
+  Shift-backspace a preset while editting it to delete it.
 Click "variables" to edit simulation settings.
   "speed" is the speed of the simulation.
   "height" is the in-simulation height of the screen (the width will automatically adjust).
