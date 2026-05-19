@@ -1052,6 +1052,9 @@ function Preset(title, settings, objects, func) {
       angInc = settings.angInc;
     }
     
+    screenX = 0;
+    screenY = 0;
+    
     if (objects != undefined) {
       for (o of objects) {
         switch (o.type) {
@@ -1783,116 +1786,116 @@ function update(dt) {
   document.getElementById("q").innerHTML = dt;
     unum = 0;
   }*/
-    
-    if (dragObj != null && dragMode == true) {
-      if (dragObj.wallType == undefined) {
-        dragObj.pa += b.va * dt;
+  
+  if (dragObj != null && dragMode == true) {
+    if (dragObj.wallType == undefined) {
+      dragObj.pa += b.va * dt;
+    }
+  }
+  
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update1(dt);
       }
-    }
-    
-    for (b of balls) {
-        if (b != dragObj || dragMode == undefined) {
-            b.update1(dt);
-        }
-    }
-    for (b of balls) {
-        if (b != dragObj || dragMode == undefined) {
-            b.update2(dt);
-        }
-    }
-    for (b of balls) {
-        if (b != dragObj || dragMode == undefined) {
-            b.update3(dt);
-        }
-    }
-    for (b of balls) {
-        if (b != dragObj || dragMode == undefined) {
-            b.update4(dt);
-        }
-    }
-    
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update2(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update3(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update4(dt);
+      }
+  }
+  
 }
 
 function show() {
   
-    scale();
-    ctxMain.fillStyle = "#efff9f";
-    ctxMain.fillRect(screenX, screenY, main.width / scaleFactor, main.height / scaleFactor);
-    
-    for (w of walls) {
-        w.show();
-    }
-    
-    for (b of balls) {
-        b.show();
-    }
-    
-    if (ballX != null) {
-        let size = 2 * alignNum(dist(ballX, ballY, mouseX, mouseY));
-        drawBall(ballX, ballY, angle(ballX, ballY, mouseX, mouseY), size, newColor);
-    } else if (wallX2 != null) {
-        let size;
-        switch (dragType) {
-            case "w":
-                size = alignNum(((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2));
-                drawRectWall(wallX1, wallY1, wallX2, wallY2, size, newColor);
-                break;
-            case "c":
-                let r1 = alignNum(dist(wallX1, wallY1, wallX2, wallY2));
-                let r2 = alignNum(dist(wallX1, wallY1, mouseX, mouseY));
-                if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
-                    r2 = 0;
-                }
-                let a1 = angle(wallX1, wallY1, wallX2, wallY2);
-                let a2 = alignAngle(a1 + wallA);
-                if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
-                    a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
-                }
-                drawCircleWall(wallX1, wallY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
-                break;
-            case "l":
-                for (w of getWallList(wallX1, wallY1, wallListSize(wallX1, wallY1, mouseX, mouseY), newColor)) {
-                    drawRectWall(...w);
-                }
-                break;
-        }
-    } else if (wallX1 != null) {
-        switch (dragType) {
-            case "w":
-                scale();
-                ctxMain.lineCap = "but" + "t";
-                ctxMain.beginPath();
-                ctxMain.moveTo(wallX1, wallY1);
-                ctxMain.lineTo(...alignPos(mouseX, mouseY));
-                ctxMain.strokeStyle = newColor;
-                ctxMain.lineWidth = 2 / scaleFactor;
-                ctxMain.stroke();
-                break;
-            case "c":
-                scale();
-                ctxMain.strokeStyle = newColor;
-                ctxMain.lineWidth = 2 / scaleFactor;
-                ctxMain.lineCap = "but" + "t";
-                ctxMain.beginPath();
-                ctxMain.moveTo(wallX1, wallY1);
-                ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
-                ctxMain.stroke();
-                break;
-            case "l":
-                scale();
-                ctxMain.strokeStyle = newColor;
-                ctxMain.lineWidth = 2 / scaleFactor;
-                ctxMain.lineCap = "but" + "t";
-                ctxMain.beginPath();
-                ctxMain.moveTo(wallX1[0], wallY1[0])
-                for (let n = 1; n < wallX1.length; n++) {
-                    ctxMain.lineTo(wallX1[n], wallY1[n]);
-                }
-                ctxMain.stroke();
-                break;
-        }
-    }
-    
+  scale();
+  ctxMain.fillStyle = "#efff9f";
+  ctxMain.fillRect(screenX, screenY, main.width / scaleFactor, main.height / scaleFactor);
+  
+  for (w of walls) {
+      w.show();
+  }
+  
+  for (b of balls) {
+      b.show();
+  }
+  
+  if (ballX != null) {
+      let size = 2 * alignNum(dist(ballX, ballY, mouseX, mouseY));
+      drawBall(ballX, ballY, alignAngle(angle(ballX, ballY, mouseX, mouseY)), size, newColor);
+  } else if (wallX2 != null) {
+      let size;
+      switch (dragType) {
+          case "w":
+              size = alignNum(((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2));
+              drawRectWall(wallX1, wallY1, wallX2, wallY2, size, newColor);
+              break;
+          case "c":
+              let r1 = alignNum(dist(wallX1, wallY1, wallX2, wallY2));
+              let r2 = alignNum(dist(wallX1, wallY1, mouseX, mouseY));
+              if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
+                  r2 = 0;
+              }
+              let a1 = angle(wallX1, wallY1, wallX2, wallY2);
+              let a2 = alignAngle(a1 + wallA);
+              if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
+                  a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
+              }
+              drawCircleWall(wallX1, wallY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
+              break;
+          case "l":
+              for (w of getWallList(wallX1, wallY1, wallListSize(wallX1, wallY1, mouseX, mouseY), newColor)) {
+                  drawRectWall(...w);
+              }
+              break;
+      }
+  } else if (wallX1 != null) {
+      switch (dragType) {
+          case "w":
+              scale();
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(wallX1, wallY1);
+              ctxMain.lineTo(...alignPos(mouseX, mouseY));
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.stroke();
+              break;
+          case "c":
+              scale();
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(wallX1, wallY1);
+              ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
+              ctxMain.stroke();
+              break;
+          case "l":
+              scale();
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(wallX1[0], wallY1[0])
+              for (let n = 1; n < wallX1.length; n++) {
+                  ctxMain.lineTo(wallX1[n], wallY1[n]);
+              }
+              ctxMain.stroke();
+              break;
+      }
+  }
+  
 }
 
 function showMenu() {
