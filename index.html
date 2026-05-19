@@ -36,11 +36,6 @@
 /*
 notes:
 this version has all instances of "*****" replaced with "but" + "t"
-
-todo: 
-fix zoom lattice issue
-fix wall lists
-fix default mass
 */
 
 const widthFactor = 4 / 5;
@@ -114,11 +109,13 @@ var wallRestitution = 0.99;
 var ballFriction = 0.2;
 var ballRestitution = 0.99;
 var collide = true;
-var density = 1;
-var moiCoef = 1/2;
 var dragCoef0 = 0;
 var dragCoef1 = 0;
 var dragCoef2 = 0;
+var density = 1;
+var moiCoef = 1/2;
+var distInc = 1/2;
+var angInc = 15;
 var push = true;
 var bounded = false;
 var inValue = false;
@@ -146,12 +143,16 @@ function getMouseY(y) {
 }
 
 function shift(dx, dy) {
+  let dx1 = Math.round((screenX + dx) / distInc) * distInc - screenX;
+  let dy1 = Math.round((screenY + dy) / distInc) * distInc - screenY;
   for (let b of balls) {
-    b.move(-dx, -dy);
+    b.move(-dx1, -dy1);
   }
   for (let w of walls) {
-    w.move(-dx, -dy);
+    w.move(-dx1, -dy1);
   }
+  screenX += dx - dx1;
+  screenY += dy - dy1;
 }
 
 function zoom(factor, x, y) {
@@ -205,12 +206,20 @@ function angMod(a) {
     }
 }
 
+function alignNum(n) {
+  return (pressedKeys.includes("shift") ? Math.round(n / distInc) * distInc : n);
+}
+
+function alignPos(x, y) {
+  return [alignNum(x), alignNum(y)];
+}
+
 function alignAngle(a) {
-  return Math.round(a * 12 / Math.PI) * Math.PI / 12;
+  return (pressedKeys.includes("control") ? Math.round(a * 180 / angInc / Math.PI) * Math.PI * angInc / 180 : a);
 }
 
 function alignLine(x1, y1, x2, y2) {
-  r = dist(x1, y1, x2, y2)
+  r = alignNum(dist(x1, y1, x2, y2));
   a = alignAngle(angle(x1, y1, x2, y2));
   return [x1 + r * Math.cos(a), y1 + r * Math.sin(a)];
 }
@@ -953,12 +962,15 @@ function WallList(w, convert = false) {
     }
     
     this.move = function(dx, dy) {
+        this.centerX += dx;
+        this.centerY += dy;
         for (w of this.walls) {
             w.move(dx, dy);
         }
     }
     
     this.rotate = function(da) {
+        this.angle += da;
         for (w of this.walls) {
             w.rotate(da);
             let dax = Math.cos(da);
@@ -1033,6 +1045,12 @@ function Preset(title, settings, objects, func) {
     if (settings.moiCoef != undefined) {
       moiCoef = settings.moiCoef;
     }
+    if (settings.distInc != undefined) {
+      distInc = settings.distInc;
+    }
+    if (settings.angInc != undefined) {
+      angInc = settings.angInc;
+    }
     
     if (objects != undefined) {
       for (o of objects) {
@@ -1064,6 +1082,7 @@ function MenuButton(n, title, click) {
   this.title = title;
   this.click = click;
   
+  this.clickable = false;
   this.rawsx = menu.width * 4 / 5;
   this.rawsy = menu.width / 4;
   
@@ -1133,7 +1152,7 @@ function MenuPreset(n, clickable, preset) {
   }
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.updateValue = function(char) {
@@ -1197,7 +1216,7 @@ function MenuBoolean(n, title, clickable, get, click) {
   this.get = () => (title + ": " + (this.rawGet() ? "on" : "off"));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
@@ -1242,7 +1261,7 @@ function MenuNumber(n, title, clickable, get, set) {
   this.get = () => (title + ": " + (this.clicked ? this.value : this.rawGet()));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
@@ -1312,7 +1331,7 @@ function MenuFloat(n, title, clickable, get, set) {
   this.get = () => (title + ": " + (truncate(this.clicked ? this.sign * this.value * 10 ** (this.eSign * this.eValue) : this.rawGet())));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
@@ -1506,7 +1525,9 @@ function setup() {
         "drag1": dragCoef1,
         "drag2": dragCoef2,
         "density": density,
-        "moiCoef": moiCoef
+        "moiCoef": moiCoef,
+        "distInc": distInc,
+        "angInc": angInc
       }, objects)));
     }),
     new MenuPreset(2, true, new Preset("empty", {
@@ -1524,7 +1545,9 @@ function setup() {
       "drag1": 0,
       "drag2": 0,
       "density": 1,
-      "moiCoef": 1/2
+      "moiCoef": 1/2,
+      "distInc": 1/2,
+      "angInc": 15
     })),
     new MenuPreset(3, true, new Preset("small", {
       "speed": 1,
@@ -1541,7 +1564,9 @@ function setup() {
       "drag1": 0,
       "drag2": 0,
       "density": 1,
-      "moiCoef": 1/2
+      "moiCoef": 1/2,
+      "distInc": 1/2,
+      "angInc": 15
     })),
     new MenuPreset(4, true, new Preset("large", {
       "speed": 365 * 86400 / 10,
@@ -1558,7 +1583,9 @@ function setup() {
       "drag1": 0,
       "drag2": 0,
       "density": 10 ** -2,
-      "moiCoef": 1/2
+      "moiCoef": 1/2,
+      "distInc": 5 * 10 ** 10,
+      "angInc": 15
     })),
     new MenuPreset(5, true, new Preset("box", {
       "speed": 1,
@@ -1575,7 +1602,9 @@ function setup() {
       "drag1": 0,
       "drag2": 0,
       "density": 1,
-      "moiCoef": 1/2
+      "moiCoef": 1/2,
+      "distInc": 1/2,
+      "angInc": 15
     }, [], function() {
       let height = 10;
       let width = 12 * main.width / main.height - 2;
@@ -1600,7 +1629,9 @@ function setup() {
       "drag1": 0,
       "drag2": 0,
       "density": 10 ** -2,
-      "moiCoef": 1/2
+      "moiCoef": 1/2,
+      "distInc": 5 * 10 ** 10,
+      "angInc": 15
     }, [], function() {
       balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, "red"));
       balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, "green"));
@@ -1661,6 +1692,12 @@ function setup() {
     }),
     new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
       moiCoef = moiCoef1;
+    }),
+    new MenuFloat(3, "distInc", true, () => (distInc), function(distInc1) {
+      distInc = distInc1;
+    }),
+    new MenuNumber(4, "angInc", true, () => (angInc), function(angInc1) {
+      angInc = angInc1;
     })
   ];
   
@@ -1748,7 +1785,9 @@ function update(dt) {
   }*/
     
     if (dragObj != null && dragMode == true) {
-      dragObj.pa += b.va * dt;
+      if (dragObj.wallType == undefined) {
+        dragObj.pa += b.va * dt;
+      }
     }
     
     for (b of balls) {
@@ -1789,28 +1828,23 @@ function show() {
     }
     
     if (ballX != null) {
-        let size = 2 * dist(ballX, ballY, mouseX, mouseY);
+        let size = 2 * alignNum(dist(ballX, ballY, mouseX, mouseY));
         drawBall(ballX, ballY, angle(ballX, ballY, mouseX, mouseY), size, newColor);
     } else if (wallX2 != null) {
         let size;
         switch (dragType) {
             case "w":
-                size = ((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2);
+                size = alignNum(((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2));
                 drawRectWall(wallX1, wallY1, wallX2, wallY2, size, newColor);
                 break;
             case "c":
-                let r1 = dist(wallX1, wallY1, wallX2, wallY2);
-                let r2 = dist(wallX1, wallY1, mouseX, mouseY);
+                let r1 = alignNum(dist(wallX1, wallY1, wallX2, wallY2));
+                let r2 = alignNum(dist(wallX1, wallY1, mouseX, mouseY));
                 if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
                     r2 = 0;
                 }
                 let a1 = angle(wallX1, wallY1, wallX2, wallY2);
-                let a2;
-                if (pressedKeys.includes("shift")) {
-                  a2 = alignAngle(a1 + wallA);
-                } else {
-                  a2 = a1 + wallA;
-                }
+                let a2 = alignAngle(a1 + wallA);
                 if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
                     a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
                 }
@@ -1826,16 +1860,12 @@ function show() {
         switch (dragType) {
             case "w":
                 scale();
-                ctxMain.strokeStyle = newColor;
-                ctxMain.lineWidth = 2 / scaleFactor;
                 ctxMain.lineCap = "but" + "t";
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1, wallY1);
-                if (pressedKeys.includes("shift")) {
-                  ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
-                } else {
-                  ctxMain.lineTo(mouseX, mouseY);
-                }
+                ctxMain.lineTo(...alignPos(mouseX, mouseY));
+                ctxMain.strokeStyle = newColor;
+                ctxMain.lineWidth = 2 / scaleFactor;
                 ctxMain.stroke();
                 break;
             case "c":
@@ -1845,11 +1875,7 @@ function show() {
                 ctxMain.lineCap = "but" + "t";
                 ctxMain.beginPath();
                 ctxMain.moveTo(wallX1, wallY1);
-                if (pressedKeys.includes("shift")) {
-                  ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
-                } else {
-                  ctxMain.lineTo(mouseX, mouseY);
-                }
+                ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
                 ctxMain.stroke();
                 break;
             case "l":
@@ -1936,8 +1962,8 @@ function frame(time) {
     if (dragObj != null) {
         if (dragObj.wallType == undefined) {
             if (dragMode == true) {
-                dragObj.px = mouseX + dragOffsetX;
-                dragObj.py = mouseY + dragOffsetY;
+                dragObj.px = alignNum(mouseX + dragOffsetX);
+                dragObj.py = alignNum(mouseY + dragOffsetY);
                 dragvx.push(mouseX - pfmouseX);
                 if (dragvx.length > dragVTime * fps) {
                     dragvx.shift();
@@ -1947,11 +1973,7 @@ function frame(time) {
                     dragvy.shift();
                 }
             } else if (dragMode == false) {
-                if (pressedKeys.includes("shift")) {
-                  dragObj.pa = alignAngle(angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA);
-                } else {
-                  dragObj.pa = angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA;
-                }
+                dragObj.pa = alignAngle(angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA);
                 let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pfmouseX, pfmouseY);
                 if (va > Math.PI) {
                     va -= Math.PI;
@@ -1961,17 +1983,11 @@ function frame(time) {
                     dragva.shift();
                 }
             }
-        } else {
+        } else {;
             if (dragMode == true) {
-                dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
-                dragOffsetX = -mouseX;
-                dragOffsetY = -mouseY;
+                dragObj.move(alignNum(mouseX + dragOffsetX) - dragObj.centerX, alignNum(mouseY + dragOffsetY) - dragObj.centerY);
             } else if (dragMode == false) {
-                if (pressedKeys.includes("shift")) {
-                  dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
-                } else {
-                  dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA - dragObj.angle);
-                }
+                dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
             }
         }
     }
@@ -2028,7 +2044,7 @@ function getWallList(x, y, size, color) {
                 extra = size * (pdistance * (y[n] - y[pn]) - distance * (y[pn] - y[ppn])) / (distance * (x[pn] - x[ppn]) - pdistance * (x[pn] - x[n]));
                 extra = (Number.isFinite(extra)/* && extra > 0*/ ? Math.abs(extra) : 0);
                 //extra = (Number.isFinite(extra) && extra > 0 ? extra : 0);
-                wList.push([x[ppn] + pextra * (x[ppn] - x[pn]) / pdistance, y[ppn] + pextra * (y[ppn] - y[pn]) / pdistance, x[pn] + extra * (x[n] - x[pn]) / distance, y[pn] + extra * (y[n] - y[pn]) / distance, size, color/*"rgb(" + (n * 63) % 256 + ",0,0)"*/]);
+                wList.push([x[ppn] + pextra * (x[ppn] - x[pn]) / pdistance, y[ppn] + pextra * (y[ppn] - y[pn]) / pdistance, x[pn] + extra * (x[n] - x[pn]) / distance, y[pn] + extra * (y[n] - y[pn]) / distance, size, color]);
                 //wList.push([x[n-2], y[n-2], x[pn], y[pn], size, color]);
                 ////document.getElementById("p").innerHTML += x[ppn] + pextra * (x[ppn] - x[pn]) / pdistance + " | ";
             }
@@ -2062,15 +2078,15 @@ function getWalls(l) {
 }
 
 function createBall() {
-    let newSize = 2 * dist(ballX, ballY, mouseX, mouseY);
-    balls.push(new Ball(ballX, ballY, angle(ballX, ballY, mouseX, mouseY), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, newColor));
+    let newSize = 2 * alignNum(dist(ballX, ballY, mouseX, mouseY));
+    balls.push(new Ball(ballX, ballY, alignAngle(angle(ballX, ballY, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, newColor));
     
     ballX = null;
     ballY = null;
 }
 
 function createRectWall() {
-    let size = ((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2);
+    let size = alignNum(((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2));
     walls.push(new RectWall(wallX1, wallY1, wallX2, wallY2, size, newColor));
     
     wallX1 = null;
@@ -2080,18 +2096,13 @@ function createRectWall() {
 }
 
 function createCircleWall() {
-    let r1 = dist(wallX1, wallY1, wallX2, wallY2);
-    let r2 = dist(wallX1, wallY1, mouseX, mouseY);
+    let r1 = alignNum(dist(wallX1, wallY1, wallX2, wallY2));
+    let r2 = alignNum(dist(wallX1, wallY1, mouseX, mouseY));
     if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
         r2 = 0;
     }
     let a1 = angle(wallX1, wallY1, wallX2, wallY2);
-    let a2;
-    if (pressedKeys.includes("shift")) {
-      a2 = alignAngle(a1 + wallA);
-    } else {
-      a2 = a1 + wallA;
-    }
+    let a2 = alignAngle(a1 + wallA);
     if (Math.abs(a2 - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
         a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
     }
@@ -2141,14 +2152,14 @@ function drag(mode) {
     } else {
       if (mode) {
         if (dragMode == true) {
-          dragOffsetX = -mouseX;
-          dragOffsetY = -mouseY;
+          dragOffsetX = dragObj.centerX - mouseX;
+          dragOffsetY = dragObj.centerY - mouseY;
         } else if (dragMode == false) {
           dragOffsetA = dragObj.angle - angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
         }
       } else {
         if (dragMode == true) {
-          dragObj.move(mouseX + dragOffsetX, mouseY + dragOffsetY);
+          dragObj.move(alignNum(mouseX + dragOffsetX) - dragObj.centerX, alignNum(mouseY + dragOffsetY) - dragObj.centerY);
         } else if (dragMode == false) {
           dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA - dragObj.angle);
         }
@@ -2182,15 +2193,14 @@ function checkClick() {
               wallX2 = true;
               wallY2 = true;
           }
-        } else {
-          if (pressedKeys.includes("shift")) {
-            aligned = alignLine(wallX1, wallY1, mouseX, mouseY);
-            wallX2 = aligned[0];
-            wallY2 = aligned[1];
-          } else {
-            wallX2 = mouseX;
-            wallY2 = mouseY;
-          }
+        } else if (dragType == "w") {
+          wallX2 = alignNum(mouseX);
+          wallY2 = alignNum(mouseY);
+          wallA = 0;
+        } else if (dragType == "c") {
+          aligned = alignLine(wallX1, wallY1, mouseX, mouseY);
+          wallX2 = aligned[0];
+          wallY2 = aligned[1];
           wallA = 0;
         }
     } else if (dragObj != null) {
@@ -2329,7 +2339,7 @@ document.onkeydown = function(event) {
                 if (dragObj.wallType == undefined) {
                     balls.splice(balls.indexOf(dragObj), 1);
                 } else {
-                    walls.splice(balls.indexOf(dragObj), 1);
+                    walls.splice(walls.indexOf(dragObj), 1);
                 }
                 dragObj = null;
             } else if (ballX != null) {
@@ -2462,13 +2472,13 @@ main.onmousedown = function(event) {
       if (dragObj == null) {
           switch (dragType) {
               case "b":
-                  ballX = mouseX;
-                  ballY = mouseY;
+                  ballX = alignNum(mouseX);
+                  ballY = alignNum(mouseY);
                   break;
               case "c":
               case "w":
-                  wallX1 = mouseX;
-                  wallY1 = mouseY;
+                  wallX1 = alignNum(mouseX);
+                  wallY1 = alignNum(mouseY);
                   break;
               case "l":
                   wallX1 = [mouseX];
