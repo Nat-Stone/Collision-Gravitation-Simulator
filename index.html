@@ -238,6 +238,34 @@ function truncate(num) {
   let zeros = Math.floor(Math.log10(Math.abs(num)))
   return Math.round(num / 10 ** (zeros - 2)) / 100 + "e" + (zeros > 0 ? "+" : "") + zeros;
 }
+    
+function drawBall(px, py, pa, size, color, ctx = ctxMain) {
+  if (ctx == ctxMain) {
+    scale();
+  } else {
+    ctx.resetTransform();
+  }
+  ctx.translate(px, py);
+  ctx.scale(size / 100, size / 100);
+  ctx.rotate(pa);
+  ctx.fillStyle = color;
+  
+  ctx.beginPath();
+  ctx.arc(0, 0, 50, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.lineWidth = 7.5;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#0000007f";
+  ctx.beginPath();
+  let sqrt3 = 15 * Math.sqrt(3);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(30, 0);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-15, sqrt3);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-15, -sqrt3);
+  ctx.stroke();
+}
 
 function drawRectWall(x1, y1, x2, y2, size, color, ctx = ctxMain) {
   if (ctx == ctxMain) {
@@ -268,214 +296,6 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   ctx.beginPath();
   ctx.arc(x, y, (r1 + r2) / 2, a1, a2);
   ctx.stroke();
-}
-    
-function drawBall(px, py, pa, size, color, ctx = ctxMain) {
-  if (ctx == ctxMain) {
-    scale();
-  } else {
-    ctx.resetTransform();
-  }
-  ctx.translate(px, py);
-  ctx.scale(size / 100, size / 100);
-  ctx.rotate(pa);
-  ctx.fillStyle = color;
-  
-  ctx.beginPath();
-  ctx.arc(0, 0, 50, 0, 2 * Math.PI);
-  ctx.fill();
-  ctx.lineWidth = 7.5;
-  ctx.lineCap = "round";
-  ctx.strokeStyle = "#0000007f";
-  ctx.beginPath();
-  let sqrt3 = 15 * Math.sqrt(3);
-  ctx.moveTo(0, 0);
-  ctx.lineTo(30, 0);
-  ctx.moveTo(0, 0);
-  ctx.lineTo(-15, sqrt3);
-  ctx.moveTo(0, 0);
-  ctx.lineTo(-15, -sqrt3);
-  ctx.stroke();
-}
-
-function RectWall(x1, y1, x2, y2, size, color) {
-    this.wallType = "rect";
-    this.x1 = x1;
-    this.y1 = y1;
-    this.x2 = x2;
-    this.y2 = y2;
-    this.size = size;
-    this.color = color;
-    
-    this.size1 = Math.abs(size);
-    this.size2 = dist(this.x1, this.y1, this.x2, this.y2);
-    this.normalX1 = (this.y1 - this.y2) / this.size2;
-    this.normalY1 = (this.x2 - this.x1) / this.size2;
-    this.normalX2 = this.normalY1;
-    this.normalY2 = -this.normalX1;
-    this.centerX = (this.x1 + this.x2 + this.normalX1 * this.size) / 2;
-    this.centerY = (this.y1 + this.y2 + this.normalY1 * this.size) / 2;
-    this.angle = angle(this.x1, this.y1, this.x2, this.y2);
-    
-    this.show = function() {
-        drawRectWall(this.x1, this.y1, this.x2, this.y2, this.size, this.color);
-    }
-    
-    this.containsPoint = function(x, y) {
-        let dist1 = (this.centerX - x) * this.normalX1 + (this.centerY - y) * this.normalY1;
-        let dist2 = (this.centerX - x) * this.normalX2 + (this.centerY - y) * this.normalY2;
-        return Math.abs(dist1) * 2 <= this.size1 && Math.abs(dist2) * 2 <= this.size2;
-    }
-    
-    this.move = function(dx, dy) {
-        this.x1 += dx;
-        this.y1 += dy;
-        this.x2 += dx;
-        this.y2 += dy;
-        this.centerX += dx;
-        this.centerY += dy;
-    }
-    
-    this.rotate = function(da) {
-        let dax = Math.cos(da);
-        let day = Math.sin(da);
-        let normalX1 = this.normalX1 * dax - this.normalY1 * day;
-        let normalY1 = this.normalX1 * day + this.normalY1 * dax;
-        let normalX2 = normalY1;
-        let normalY2 = -normalX1;
-        this.normalX1 = normalX1;
-        this.normalY1 = normalY1;
-        this.normalX2 = normalX2;
-        this.normalY2 = normalY2;
-        this.x1 = this.centerX - (normalX1 * this.size + normalY1 * this.size2) / 2;
-        this.y1 = this.centerY - (normalY1 * this.size - normalX1 * this.size2) / 2;
-        this.x2 = this.centerX - (normalX1 * this.size - normalY1 * this.size2) / 2;
-        this.y2 = this.centerY - (normalY1 * this.size + normalX1 * this.size2) / 2;
-        this.angle = angle(this.x1, this.y1, this.x2, this.y2);
-    }
-}
-
-function CircleWall(x, y, r1, r2, a1, a2, color) {
-    this.wallType = "circle";
-    
-    this.x = x;
-    this.y = y;
-    this.r1 = r1;
-    this.r2 = r2;
-    this.a1 = a1;
-    this.a2 = a2;
-    this.color = color;
-    
-    this.ax1 = Math.cos(this.a1);
-    this.ay1 = Math.sin(this.a1);
-    this.ax2 = Math.cos(this.a2);
-    this.ay2 = Math.sin(this.a2);
-    this.normalX1 = this.ay1;
-    this.normalY1 = -this.ax1;
-    this.normalX2 = -this.ay2;
-    this.normalY2 = this.ax2;
-    this.centerX = x;
-    this.centerY = y;
-    this.angle = this.a1;
-    
-    this.show = function() {
-        drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
-    }
-    
-    this.containsPoint = function(x, y) {
-        let distance = dist(this.x, this.y, x, y);
-        
-        let ang = angle(this.x, this.y, x, y);
-        let angDist1 = angMod(ang - w.a1) * distance;
-        let angDist2 = angMod(w.a2 - ang) * distance;
-        return this.r1 <= distance && distance <= this.r2 && (a2 - a1 == Math.PI * 2 || angDist1 + angDist2 <= distance * Math.PI * 2);
-    }
-    
-    this.move = function(dx, dy) {
-        this.x += dx;
-        this.y += dy;
-        this.centerX += dx;
-        this.centerY += dy;
-    }
-    
-    this.rotate = function(da) {
-        this.a1 += da;
-        this.a2 += da;
-        
-        this.ax1 = Math.cos(this.a1);
-        this.ay1 = Math.sin(this.a1);
-        this.ax2 = Math.cos(this.a2);
-        this.ay2 = Math.sin(this.a2);
-        this.normalX1 = this.ay1;
-        this.normalY1 = -this.ax1;
-        this.normalX2 = -this.ay2;
-        this.normalY2 = this.ax2;
-        
-        this.angle = this.a1;
-    }
-}
-
-function WallList(w, convert = false) {
-    this.wallType = "list";
-    if (convert) {
-        this.walls = getWalls(w);
-    } else {
-        this.walls = w;
-    }
-    
-    let num = 0;
-    let totalX = 0;
-    let totalY = 0;
-    for (w of this.walls) {
-        num += 1;
-        totalX += w.centerX;
-        totalY += w.centerY;
-    }
-    if (num == 0) {
-        this.centerX = 0;
-        this.centerY = 0;
-    } else {
-        this.centerX = totalX / num;
-        this.centerY = totalY / num;
-    }
-    this.angle = 0;
-    
-    this.show = function() {
-        for (w of this.walls) {
-            w.show();
-        }
-    }
-    
-    this.containsPoint = function(x, y) {
-        for (w of this.walls) {
-            if (w.containsPoint(x, y)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    this.move = function(dx, dy) {
-        for (w of this.walls) {
-            w.move(dx, dy);
-        }
-    }
-    
-    this.rotate = function(da) {
-        for (w of this.walls) {
-            w.rotate(da);
-            let dax = Math.cos(da);
-            let day = Math.sin(da);
-            let dx = (w.centerX - this.centerX) * (dax - 1) - (w.centerY - this.centerY) * day;
-            let dy = (w.centerX - this.centerX) * day + (w.centerY - this.centerY) * (dax - 1);
-            w.centerX += dx;
-            w.centerY += dy;
-            w.x1 += dx;
-            w.y1 += dy;
-            w.x2 += dx;
-            w.y2 += dy;
-        }
-    }
 }
 
 function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
@@ -975,10 +795,192 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
     this.updateMOI();
 }
 
-function Preset(title, settings, create) {
+function RectWall(x1, y1, x2, y2, size, color) {
+    this.wallType = "rect";
+    this.x1 = x1;
+    this.y1 = y1;
+    this.x2 = x2;
+    this.y2 = y2;
+    this.size = size;
+    this.color = color;
+    
+    this.size1 = Math.abs(size);
+    this.size2 = dist(this.x1, this.y1, this.x2, this.y2);
+    this.normalX1 = (this.y1 - this.y2) / this.size2;
+    this.normalY1 = (this.x2 - this.x1) / this.size2;
+    this.normalX2 = this.normalY1;
+    this.normalY2 = -this.normalX1;
+    this.centerX = (this.x1 + this.x2 + this.normalX1 * this.size) / 2;
+    this.centerY = (this.y1 + this.y2 + this.normalY1 * this.size) / 2;
+    this.angle = angle(this.x1, this.y1, this.x2, this.y2);
+    
+    this.show = function() {
+        drawRectWall(this.x1, this.y1, this.x2, this.y2, this.size, this.color);
+    }
+    
+    this.containsPoint = function(x, y) {
+        let dist1 = (this.centerX - x) * this.normalX1 + (this.centerY - y) * this.normalY1;
+        let dist2 = (this.centerX - x) * this.normalX2 + (this.centerY - y) * this.normalY2;
+        return Math.abs(dist1) * 2 <= this.size1 && Math.abs(dist2) * 2 <= this.size2;
+    }
+    
+    this.move = function(dx, dy) {
+        this.x1 += dx;
+        this.y1 += dy;
+        this.x2 += dx;
+        this.y2 += dy;
+        this.centerX += dx;
+        this.centerY += dy;
+    }
+    
+    this.rotate = function(da) {
+        let dax = Math.cos(da);
+        let day = Math.sin(da);
+        let normalX1 = this.normalX1 * dax - this.normalY1 * day;
+        let normalY1 = this.normalX1 * day + this.normalY1 * dax;
+        let normalX2 = normalY1;
+        let normalY2 = -normalX1;
+        this.normalX1 = normalX1;
+        this.normalY1 = normalY1;
+        this.normalX2 = normalX2;
+        this.normalY2 = normalY2;
+        this.x1 = this.centerX - (normalX1 * this.size + normalY1 * this.size2) / 2;
+        this.y1 = this.centerY - (normalY1 * this.size - normalX1 * this.size2) / 2;
+        this.x2 = this.centerX - (normalX1 * this.size - normalY1 * this.size2) / 2;
+        this.y2 = this.centerY - (normalY1 * this.size + normalX1 * this.size2) / 2;
+        this.angle = angle(this.x1, this.y1, this.x2, this.y2);
+    }
+}
+
+function CircleWall(x, y, r1, r2, a1, a2, color) {
+    this.wallType = "circle";
+    
+    this.x = x;
+    this.y = y;
+    this.r1 = r1;
+    this.r2 = r2;
+    this.a1 = a1;
+    this.a2 = a2;
+    this.color = color;
+    
+    this.ax1 = Math.cos(this.a1);
+    this.ay1 = Math.sin(this.a1);
+    this.ax2 = Math.cos(this.a2);
+    this.ay2 = Math.sin(this.a2);
+    this.normalX1 = this.ay1;
+    this.normalY1 = -this.ax1;
+    this.normalX2 = -this.ay2;
+    this.normalY2 = this.ax2;
+    this.centerX = x;
+    this.centerY = y;
+    this.angle = this.a1;
+    
+    this.show = function() {
+        drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
+    }
+    
+    this.containsPoint = function(x, y) {
+        let distance = dist(this.x, this.y, x, y);
+        
+        let ang = angle(this.x, this.y, x, y);
+        let angDist1 = angMod(ang - w.a1) * distance;
+        let angDist2 = angMod(w.a2 - ang) * distance;
+        return this.r1 <= distance && distance <= this.r2 && (a2 - a1 == Math.PI * 2 || angDist1 + angDist2 <= distance * Math.PI * 2);
+    }
+    
+    this.move = function(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+        this.centerX += dx;
+        this.centerY += dy;
+    }
+    
+    this.rotate = function(da) {
+        this.a1 += da;
+        this.a2 += da;
+        
+        this.ax1 = Math.cos(this.a1);
+        this.ay1 = Math.sin(this.a1);
+        this.ax2 = Math.cos(this.a2);
+        this.ay2 = Math.sin(this.a2);
+        this.normalX1 = this.ay1;
+        this.normalY1 = -this.ax1;
+        this.normalX2 = -this.ay2;
+        this.normalY2 = this.ax2;
+        
+        this.angle = this.a1;
+    }
+}
+
+function WallList(w, convert = false) {
+    this.wallType = "list";
+    if (convert) {
+        this.walls = getWalls(w);
+    } else {
+        this.walls = w;
+    }
+    
+    let num = 0;
+    let totalX = 0;
+    let totalY = 0;
+    for (w of this.walls) {
+        num += 1;
+        totalX += w.centerX;
+        totalY += w.centerY;
+    }
+    if (num == 0) {
+        this.centerX = 0;
+        this.centerY = 0;
+    } else {
+        this.centerX = totalX / num;
+        this.centerY = totalY / num;
+    }
+    this.angle = 0;
+    
+    this.show = function() {
+        for (w of this.walls) {
+            w.show();
+        }
+    }
+    
+    this.containsPoint = function(x, y) {
+        for (w of this.walls) {
+            if (w.containsPoint(x, y)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    this.move = function(dx, dy) {
+        for (w of this.walls) {
+            w.move(dx, dy);
+        }
+    }
+    
+    this.rotate = function(da) {
+        for (w of this.walls) {
+            w.rotate(da);
+            let dax = Math.cos(da);
+            let day = Math.sin(da);
+            let dx = (w.centerX - this.centerX) * (dax - 1) - (w.centerY - this.centerY) * day;
+            let dy = (w.centerX - this.centerX) * day + (w.centerY - this.centerY) * (dax - 1);
+            w.centerX += dx;
+            w.centerY += dy;
+            w.x1 += dx;
+            w.y1 += dy;
+            w.x2 += dx;
+            w.y2 += dy;
+        }
+    }
+}
+
+function Preset(title, settings, objects, func) {
   this.title = title;
   this.settings = settings;
-  this.create = create;
+  this.objects = (objects == undefined ? [] : objects);
+  this.func = (func == undefined ? function() {} : func);
+  //idk why these don't save
   
   this.set = function() {
     dragObj = null;
@@ -1032,7 +1034,28 @@ function Preset(title, settings, create) {
       moiCoef = settings.moiCoef;
     }
     
-    create(); //this.create was undefined, idk why
+    if (objects != undefined) {
+      for (o of objects) {
+        switch (o.type) {
+          case "ball":
+            balls.push(new Ball(o.px, o.py, o.pa, o.vx, o.vy, o.va, o.mass, o.size, o.moiCoef, o.color));
+            break;
+          case "rectWall":
+            walls.push(new RectWall(o.x1, o.y1, o.x2, o.y2, o.size, o.color));
+            break;
+          case "circleWall":
+            walls.push(new CircleWall(o.x, o.y, o.r1, o.r2, o.a1, o.a2, o.color));
+            break;
+          case "listWall":
+            walls.push(new ListWall(o.w, o.convert));
+            break;
+        }
+      }
+    }
+    
+    if (func != undefined) {
+      func();
+    }
   }
 }
 
@@ -1041,147 +1064,192 @@ function MenuButton(n, title, click) {
   this.title = title;
   this.click = click;
   
-  this.x = menu.width / 2;
-  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.rawsx = menu.width * 4 / 5;
   this.rawsy = menu.width / 4;
   
-  this.hoverFactor = 1.08
+  this.hoverFactor = 1.08;
   
   this.hovered = false;
   this.clicked = false;
   
+  this.x = () => menu.width / 2;
+  this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
   this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
-    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    ctxMenu.fillRect(this.x() - this.sx() / 2, this.y() - this.sy() / 2, this.sx(), this.sy());
     
     ctxMenu.fillStyle = (this.clicked ? "white" : "black");
     ctxMenu.font = menu.width * 2 / 21 + "px Arial"
     ctxMenu.textAlign = "center";
     ctxMenu.textBaseline = "middle";
-    ctxMenu.fillText(this.title, this.x, this.y);
+    ctxMenu.fillText(this.title, this.x(), this.y());
   }
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
 }
 
-function MenuPreset(n, preset) {
+function MenuPreset(n, clickable, preset) {
   this.n = n;
+  this.clickable = clickable;
   this.preset = preset;
   
-  this.x = menu.width / 2;
-  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.rawsx = menu.width * 4 / 5;
   this.rawsy = menu.width / 4;
   
-  this.hoverFactor = 1.08
+  this.hoverFactor = 1.08;
   
   this.hovered = false;
   this.clicked = false;
+  this.newTitle = "";
   
+  this.x = () => menu.width / 2;
+  this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
   this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
-    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    ctxMenu.fillRect(this.x() - this.sx() / 2, this.y() - this.sy() / 2, this.sx(), this.sy());
     
     ctxMenu.fillStyle = (this.clicked ? "white" : "black");
     ctxMenu.font = menu.width * 2 / 21 + "px Arial"
     ctxMenu.textAlign = "center";
     ctxMenu.textBaseline = "middle";
-    ctxMenu.fillText(this.preset.title, this.x, this.y);
+    ctxMenu.fillText((this.clicked ? this.newTitle : this.preset.title), this.x(), this.y());
   }
   
-  this.click = preset.set;
+  this.click = function () {
+    if (pressedKeys.includes("shift")) {
+      this.clicked = true;
+      this.newTitle = "";
+    } else {
+      this.preset.set();
+    }
+  }
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+  }
+  
+  this.updateValue = function(char) {
+    if (char.length == 1) {
+      this.newTitle += char;
+    }
+  }
+  
+  this.back = function() {
+    if (pressedKeys.includes("shift")) {
+      menuValues.presets.splice(this.n, 1);
+      for (let n = this.n; n < menuValues.presets.length; n++) { 
+        menuValues.presets[n].n -= 1;
+      }
+    } else {
+      this.newTitle = this.newTitle.slice(0, this.newTitle.length - 1);
+    }
+  }
+  
+  this.esc = function() {
+    this.clicked = false;
+  }
+  
+  this.set = function() {
+    this.preset.title = this.newTitle;
+    this.clicked = false;
   }
 }
 
-function MenuToggle(n, title, get, click) {
+function MenuBoolean(n, title, clickable, get, click) {
   this.n = n;
   this.title = title;
+  this.clickable = clickable;
   this.rawGet = get;
-  this.click = click;
+  this.rawClick = click;
   
-  this.x = menu.width / 2;
-  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.rawsx = menu.width * 4 / 5;
   this.rawsy = menu.width / 4;
   
-  this.hoverFactor = 1.08
+  this.hoverFactor = 1.08;
   
   this.hovered = false;
   this.clicked = false;
   
+  this.x = () => menu.width / 2;
+  this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
   this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
-    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    ctxMenu.fillRect(this.x() - this.sx() / 2, this.y() - this.sy() / 2, this.sx(), this.sy());
     
     ctxMenu.fillStyle = (this.clicked ? "white" : "black");
     ctxMenu.font = menu.width * 2 / 21 + "px Arial"
     ctxMenu.textAlign = "center";
     ctxMenu.textBaseline = "middle";
-    ctxMenu.fillText(this.get(), this.x, this.y);
+    ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
   this.get = () => (title + ": " + (this.rawGet() ? "on" : "off"));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+  }
+  
+  this.click = function() {
+    if (this.clickable) {
+      this.rawClick();
+    }
   }
 }
 
-function MenuNumber(n, title, get, set) {
+function MenuNumber(n, title, clickable, get, set) {
   this.n = n;
   this.title = title;
+  this.clickable = clickable;
   this.rawGet = get;
   this.rawSet = set;
   
-  this.x = menu.width / 2;
-  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.rawsx = menu.width * 4 / 5;
   this.rawsy = menu.width / 4;
   
-  this.hoverFactor = 1.08
+  this.hoverFactor = 1.08;
   
   this.hovered = false;
   this.clicked = false;
   this.value = 0;
   
+  this.x = () => menu.width / 2;
+  this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
   this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
-    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    ctxMenu.fillRect(this.x() - this.sx() / 2, this.y() - this.sy() / 2, this.sx(), this.sy());
     
     ctxMenu.fillStyle = (this.clicked ? "white" : "black");
     ctxMenu.font = menu.width * 2 / 21 + "px Arial"
     ctxMenu.textAlign = "center";
     ctxMenu.textBaseline = "middle";
-    ctxMenu.fillText(this.get(), this.x, this.y);
+    ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
   this.get = () => (title + ": " + (this.clicked ? this.value : this.rawGet()));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
-    this.clicked = true;
-    this.value = 0;
+    if (this.clickable) {
+      this.clicked = true;
+      this.value = 0;
+    }
   }
   
   this.updateValue = function(num) {
@@ -1204,18 +1272,17 @@ function MenuNumber(n, title, get, set) {
   }
 }
 
-function MenuVar(n, title, get, set) {
+function MenuFloat(n, title, clickable, get, set) {
   this.n = n;
   this.title = title;
+  this.clickable = clickable;
   this.rawGet = get;
   this.rawSet = set;
   
-  this.x = menu.width / 2;
-  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.rawsx = menu.width * 4 / 5;
   this.rawsy = menu.width / 4;
   
-  this.hoverFactor = 1.08
+  this.hoverFactor = 1.08;
   
   this.hovered = false;
   this.clicked = false;
@@ -1226,34 +1293,38 @@ function MenuVar(n, title, get, set) {
   this.eValue = 0;
   this.eSign = 1;
   
+  this.x = () => menu.width / 2;
+  this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
   this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
   this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
-    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
+    ctxMenu.fillRect(this.x() - this.sx() / 2, this.y() - this.sy() / 2, this.sx(), this.sy());
     
     ctxMenu.fillStyle = (this.clicked ? "white" : "black");
     ctxMenu.font = menu.width * 2 / 21 + "px Arial"
     ctxMenu.textAlign = "center";
     ctxMenu.textBaseline = "middle";
-    ctxMenu.fillText(this.get(), this.x, this.y);
+    ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
   this.get = () => (title + ": " + (truncate(this.clicked ? this.sign * this.value * 10 ** (this.eSign * this.eValue) : this.rawGet())));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
-    this.clicked = true;
-    this.value = 0;
-    this.digit = 0;
-    this.sign = 1;
-    this.eMode = false;
-    this.eValue = 0;
-    this.eSign = 1;
+    if (this.clickable) {
+      this.clicked = true;
+      this.value = 0;
+      this.digit = 0;
+      this.sign = 1;
+      this.eMode = false;
+      this.eValue = 0;
+      this.eSign = 1;
+    }
   }
   
   this.updateValue = function(num) {
@@ -1314,44 +1385,6 @@ function MenuVar(n, title, get, set) {
   }
 }
 
-function MenuInfo(n, title, get) {
-  this.n = n;
-  this.title = title;
-  this.rawGet = get;
-  
-  this.x = menu.width / 2;
-  this.y = this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.rawsx = menu.width * 4 / 5;
-  this.rawsy = menu.width / 4;
-  
-  this.hoverFactor = 1;
-  
-  this.hovered = false;
-  this.clicked = false;
-  
-  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
-  
-  this.show = function() {
-    ctxMenu.fillStyle = "orange";
-    ctxMenu.fillRect(this.x - this.sx() / 2, this.y - this.sy() / 2, this.sx(), this.sy());
-    
-    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
-    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
-    ctxMenu.textAlign = "center";
-    ctxMenu.textBaseline = "middle";
-    ctxMenu.fillText(this.get(), this.x, this.y);
-  }
-  
-  this.get = () => (title + ": " + (truncate(this.rawGet())));
-  
-  this.updateHover = function(x, y) {
-    this.hovered = this.x - this.sx() / 2 <= x && x <= this.x + this.sx() / 2 && this.y - this.sy() / 2 <= y && y <= this.y + this.sy() / 2;
-  }
-  
-  this.click = function() {}
-}
-
 function setup() {
   
   menuValues.main = [
@@ -1376,10 +1409,10 @@ function setup() {
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
-    new MenuNumber(1, "fps", () => (fps), function(fps1) {
+    new MenuNumber(1, "fps", true, () => (fps), function(fps1) {
       fps = fps1;
     }),
-    new MenuNumber(2, "upf", () => (upf), function(upf1) {
+    new MenuNumber(2, "upf", true, () => (upf), function(upf1) {
       upf = upf1;
     }),
   ];
@@ -1388,7 +1421,95 @@ function setup() {
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
-    new MenuPreset(1, new Preset("empty", {
+    new MenuButton(1, "save", function() {
+      let n = 0;
+      let found;
+      while (true) {
+        n += 1;
+        found = false;
+        for (p of menuValues.presets) {
+          if (p.preset != undefined) {
+            if (p.preset.title == "preset " + n) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (!found) {
+          break;
+        }
+      }
+      
+      let objects = [];
+      for (let b of balls) {
+        objects.push({
+          "type": "ball",
+          "px": b.px,
+          "py": b.py,
+          "pa": b.pa,
+          "vx": b.vx,
+          "vy": b.vy,
+          "va": b.va,
+          "mass": b.mass,
+          "size": b.size,
+          "moiCoef": b.moiCoef,
+          "color": b.color
+        });
+      }
+      for (let w of walls) {
+        switch (w.wallType) {
+          case "rect":
+            objects.push({
+              "type": "rectWall",
+              "x1": w.x1, 
+              "y1": w.y1, 
+              "x2": w.x2, 
+              "y2": w.y2, 
+              "size": w.size, 
+              "color": w.color
+            });
+            break;
+          case "circle":
+            objects.push({
+              "type": "circleWall",
+              "x": w.x, 
+              "y": w.y, 
+              "r1": w.r1, 
+              "r2": w.r2, 
+              "a1": w.a1, 
+              "a2": w.a2, 
+              "color": w.color
+            });
+            break;
+          case "list":
+            objects.push({
+              "type": "listWall",
+              "w": w.walls,
+              "convert": false
+            });
+            break;
+        }
+      }
+      
+      menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
+        "speed": speed,
+        "height": gameHeight,
+        "G": G,
+        "gx": gx,
+        "gy": gy,
+        "wFrict": wallFriction,
+        "wRest": wallRestitution,
+        "bFrict": ballFriction,
+        "bRest": ballRestitution,
+        "collide": collide,
+        "drag0": dragCoef0,
+        "drag1": dragCoef1,
+        "drag2": dragCoef2,
+        "density": density,
+        "moiCoef": moiCoef
+      }, objects)));
+    }),
+    new MenuPreset(2, true, new Preset("empty", {
       "speed": 1,
       "height": 10,
       "G": 0,
@@ -1404,8 +1525,8 @@ function setup() {
       "drag2": 0,
       "density": 1,
       "moiCoef": 1/2
-    }, function() {})),
-    new MenuPreset(2, new Preset("small", {
+    })),
+    new MenuPreset(3, true, new Preset("small", {
       "speed": 1,
       "height": 10,
       "G": 0,
@@ -1421,8 +1542,8 @@ function setup() {
       "drag2": 0,
       "density": 1,
       "moiCoef": 1/2
-    }, function() {})),
-    new MenuPreset(3, new Preset("large", {
+    })),
+    new MenuPreset(4, true, new Preset("large", {
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
       "G": 6.67 * 10 ** -11,
@@ -1438,8 +1559,8 @@ function setup() {
       "drag2": 0,
       "density": 10 ** -2,
       "moiCoef": 1/2
-    }, function() {})),
-    new MenuPreset(4, new Preset("box", {
+    })),
+    new MenuPreset(5, true, new Preset("box", {
       "speed": 1,
       "height": 12,
       "G": 0,
@@ -1455,7 +1576,7 @@ function setup() {
       "drag2": 0,
       "density": 1,
       "moiCoef": 1/2
-    }, function() {
+    }, [], function() {
       let height = 10;
       let width = 12 * main.width / main.height - 2;
       let thick = 1;
@@ -1464,7 +1585,7 @@ function setup() {
       walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, "#000000"));
       walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, "#000000"));
     })),
-    new MenuPreset(5, new Preset("orbit", {
+    new MenuPreset(6, true, new Preset("orbit", {
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
       "G": 6.67 * 10 ** -11,
@@ -1480,7 +1601,7 @@ function setup() {
       "drag2": 0,
       "density": 10 ** -2,
       "moiCoef": 1/2
-    }, function() {
+    }, [], function() {
       balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, "red"));
       balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, "green"));
     }))
@@ -1490,43 +1611,43 @@ function setup() {
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
-    new MenuVar(1, "speed", () => (speed), function(speed1) {
+    new MenuFloat(1, "speed", true, () => (speed), function(speed1) {
       speed = speed1;
     }),
-    new MenuVar(2, "height", () => (gameHeight), function(height) {
+    new MenuFloat(2, "height", true, () => (gameHeight), function(height) {
       zoom(height / gameHeight);
     }),
-    new MenuVar(3, "G", () => (G), function(G1) {
+    new MenuFloat(3, "G", true, () => (G), function(G1) {
       G = G1;
     }),
-    new MenuVar(4, "gx", () => (gx), function(gx1) {
+    new MenuFloat(4, "gx", true, () => (gx), function(gx1) {
       gx = gx1;
     }),
-    new MenuVar(5, "gy", () => (gy), function(gy1) {
+    new MenuFloat(5, "gy", true, () => (gy), function(gy1) {
       gy = gy1;
     }),
-    new MenuVar(6, "wFrict", () => (wallFriction), function(wallFriction1) {
+    new MenuFloat(6, "wFrict", true, () => (wallFriction), function(wallFriction1) {
       wallFriction = wallFriction1;
     }),
-    new MenuVar(7, "wRest", () => (wallRestitution), function(wallRestitution1) {
+    new MenuFloat(7, "wRest", true, () => (wallRestitution), function(wallRestitution1) {
       wallRestitution = wallRestitution1;
     }),
-    new MenuVar(8, "bFrict", () => (ballFriction), function(ballFriction1) {
+    new MenuFloat(8, "bFrict", true, () => (ballFriction), function(ballFriction1) {
       ballFriction = ballFriction1;
     }),
-    new MenuVar(9, "bRest", () => (ballRestitution), function(ballRestitution1) {
+    new MenuFloat(9, "bRest", true, () => (ballRestitution), function(ballRestitution1) {
       ballRestitution = ballRestitution1;
     }),
-    new MenuToggle(10, "collide", () => (collide), function() {
+    new MenuBoolean(10, "collide", () => (collide), function() {
       collide = !collide;
     }),
-    new MenuVar(11, "drag0", () => (dragCoef0), function(dragCoef01) {
+    new MenuFloat(11, "drag0", true, () => (dragCoef0), function(dragCoef01) {
       dragCoef0 = dragCoef01;
     }),
-    new MenuVar(12, "drag1", () => (dragCoef1), function(dragCoef11) {
+    new MenuFloat(12, "drag1", true, () => (dragCoef1), function(dragCoef11) {
       dragCoef1 = dragCoef11;
     }),
-    new MenuVar(13, "drag2", () => (dragCoef2), function(dragCoef21) {
+    new MenuFloat(13, "drag2", true, () => (dragCoef2), function(dragCoef21) {
       dragCoef2 = dragCoef21;
     })
   ];
@@ -1535,10 +1656,10 @@ function setup() {
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
-    new MenuVar(1, "density", () => (density), function(density1) {
+    new MenuFloat(1, "density", true, () => (density), function(density1) {
       density = density1;
     }),
-    new MenuVar(2, "moi", () => (moiCoef), function(moiCoef1) {
+    new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
       moiCoef = moiCoef1;
     })
   ];
@@ -1547,28 +1668,28 @@ function setup() {
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
-    new MenuInfo(1, "px", function() {
+    new MenuFloat(1, "px", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * b.vx;
       }
       return total;
     }),
-    new MenuInfo(2, "py", function() {
+    new MenuFloat(2, "py", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * b.vy;
       }
       return total;
     }),
-    new MenuInfo(3, "kinetic", function() {
+    new MenuFloat(3, "kinetic", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2;
       }
       return total;
     }),
-    new MenuInfo(4, "energy", function() {
+    new MenuFloat(4, "energy", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * b.px + gy * b.py);
@@ -1585,25 +1706,25 @@ function setup() {
   ];
   
   objValues = [
-    new MenuVar(2, "mass", () => (dragObj.mass), function(mass) {
+    new MenuFloat(2, "mass", true, () => (dragObj.mass), function(mass) {
       dragObj.mass = mass;
       dragObj.updateMOI();
     }),
-    new MenuVar(3, "size", () => (dragObj.size), function(size) {
+    new MenuFloat(3, "size", true, () => (dragObj.size), function(size) {
       dragObj.size = size;
       dragObj.updateMOI();
     }),
-    new MenuVar(4, "moi", () => (dragObj.moiCoef), function(moiCoef) {
+    new MenuFloat(4, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
       dragObj.moiCoef = moiCoef;
       dragObj.updateMOI();
     }),
-    new MenuVar(5, "vx", () => (dragObj.vx), function(vx) {
+    new MenuFloat(5, "vx", true, () => (dragObj.vx), function(vx) {
       dragObj.vx = vx;
     }),
-    new MenuVar(6, "vy", () => (dragObj.vy), function(vy) {
+    new MenuFloat(6, "vy", true, () => (dragObj.vy), function(vy) {
       dragObj.vy = vy;
     }),
-    new MenuVar(7, "va", () => (dragObj.va), function(va) {
+    new MenuFloat(7, "va", true, () => (dragObj.va), function(va) {
       dragObj.va = va;
     })
   ];
@@ -2084,7 +2205,7 @@ function checkClick() {
 function updateBallHover() {
   if (dragObj != null) {
     if (dragObj.wallType == undefined) {
-      ballHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY) <= menu.width * 3 / 10 * (ballHovered ? 1.08 : 1);
+      ballHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= menu.width * 3 / 10 * (ballHovered ? 1.08 : 1);
     }
   }
 }
@@ -2130,25 +2251,6 @@ document.onkeydown = function(event) {
   if (inValue) {
     
     switch (event.key.toLowerCase()) {
-        case "0":
-        case "1":
-        case "2":
-        case "3":
-        case "4":
-        case "5":
-        case "6":
-        case "7":
-        case "8":
-        case "9":
-        case "-":
-        case ".":
-        case "e":
-            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
-              if (v.clicked) {
-                v.updateValue(event.key);
-              }
-            }
-            break;
         case "backspace":
             for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
               if (v.clicked) {
@@ -2172,6 +2274,12 @@ document.onkeydown = function(event) {
               }
             }
             break;
+        default:
+            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+              if (v.clicked) {
+                v.updateValue(event.key);
+              }
+            }
     }
   } else {
     
