@@ -59,11 +59,11 @@ var scaleFactor = main.height / gameHeight;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
-var upf = 100;
+var upf = 10;//////////100
 var speed = 1;
 const dragVTime = 1 / 10;
 const minDrag = 2;
-const wallListInc = 0.1;
+const wallListInc = 0.01;
 var mainPTime = 0;
 var rawMaindt = 0;
 var maindt = 0;
@@ -79,13 +79,11 @@ var pfmouseY = null;
 var pmouseY = null;
 var mouseDownX = null;
 var mouseDownY = null;
-var ballX = null;
-var ballY = null;
-var wallX1 = null;
-var wallY1 = null;
-var wallX2 = null;
-var wallY2 = null;
-var wallA = null;
+var newX1 = null;
+var newY1 = null;
+var newX2 = null;
+var newY2 = null;
+var newA = null;
 var dragType = "b";
 var dragMode = undefined;
 var dragObj = null;
@@ -143,8 +141,8 @@ function getMouseY(y) {
 }
 
 function shift(dx, dy) {
-  let dx1 = Math.round((screenX + dx) / distInc) * distInc - screenX;
-  let dy1 = Math.round((screenY + dy) / distInc) * distInc - screenY;
+  let dx1 = Math.round((screenX + dx) / distInc) * distInc;
+  let dy1 = Math.round((screenY + dy) / distInc) * distInc;
   for (let b of balls) {
     b.move(-dx1, -dy1);
   }
@@ -218,15 +216,21 @@ function alignAngle(a) {
   return (pressedKeys.includes("control") ? Math.round(a * 180 / angInc / Math.PI) * Math.PI * angInc / 180 : a);
 }
 
-function alignLine(x1, y1, x2, y2) {
-  r = alignNum(dist(x1, y1, x2, y2));
-  a = alignAngle(angle(x1, y1, x2, y2));
+function alignDist(x1, y1, x2, y2) {
+  let r = alignNum(dist(x1, y1, x2, y2));
+  let a = alignAngle(angle(x1, y1, x2, y2));
   return [x1 + r * Math.cos(a), y1 + r * Math.sin(a)];
 }
 
+function alignLine(x1, y1, x2, y2) {
+  let r = dist(x1, y1, x2, y2);
+  let a = alignAngle(angle(x1, y1, x2, y2));
+  return alignPos(x1 + r * Math.cos(a), y1 + r * Math.sin(a));
+}
+
 function average(arr) {
-  num = 0;
-  total = 0;
+  let num = 0;
+  let total = 0;
   for (n of arr) {
     if (!isNaN(n)) {
       num += 1;
@@ -289,6 +293,21 @@ function drawRectWall(x1, y1, x2, y2, size, color, ctx = ctxMain) {
   ctx.fillRect(0, 0, 100, 100);
 }
 
+function drawTriWall(x, y, color, ctx = ctxMain) {
+  if (ctx == ctxMain) {
+    scale();
+  } else {
+    ctx.resetTransform();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x[0], y[0]);
+  for (let n = 1; n < x.length; n++) {
+    ctx.lineTo(x[n], y[n]);
+  }
+  ctx.fill();
+}
+
 function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   if (ctx == ctxMain) {
     scale();
@@ -307,501 +326,567 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   ctx.stroke();
 }
 
+function drawWallList(wList, ctx = ctxMain) {
+  
+  if (wList.length > 0) {
+    if (ctx == ctxMain) {
+      scale();
+    } else {
+      ctx.resetTransform();
+    }
+    ctx.fillStyle = wList[0].color;
+    
+    let w;
+    let pw = wList[0];
+    for (let n = 1; n < wList.length; n++) {
+      w = wList[n];
+      
+      ctx.beginPath();
+      ctx.moveTo(pw.x[1], pw.y[1]);
+      ctx.lineTo(pw.x[0], pw.y[0]);
+      ctx.lineTo(pw.x[2], pw.y[2]);
+      ctx.lineTo(w.x[2], w.y[2]);
+      
+      ctx.fill();
+      
+      pw = w;
+    }
+  }
+  
+}
+
 function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
-    this.px = px;
-    this.py = py;
-    this.pa = pa;
-    this.vx = vx;
-    this.vy = vy;
-    this.va = va;
-    this.mass = mass;
-    this.size = size;
-    this.moiCoef = moiCoef;
-    this.color = color;
-    
+  this.px = px;
+  this.py = py;
+  this.pa = pa;
+  this.vx = vx;
+  this.vy = vy;
+  this.va = va;
+  this.mass = mass;
+  this.size = size;
+  this.moiCoef = moiCoef;
+  this.color = color;
+  
+  this.collided = [];
+  
+  this.show = function() {
+      drawBall(this.px, this.py, this.pa, this.size, this.color);
+  }
+  
+  this.move = function(dx, dy) {
+    this.px += dx;
+    this.py += dy;
+  }
+  
+  this.update1 = function(dt) {
+    //object gravity
+    for (b of balls) {
+      if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
+        this.forceBall(b, dt);
+      }
+    }
+    this.drag(dt);
+  }
+  
+  this.update2 = function(dt) {
+    //gravity
+    this.vx += gx * dt;
+    this.vy += gy * dt;
+    //move
+    this.px += this.vx * dt;
+    this.py += this.vy * dt;
+    this.pa += this.va * dt;
+    //new
+    this.newpx = [];
+    this.newpy = [];
+    this.newpa = [];
+    this.newvx = [];
+    this.newvy = [];
+    this.newva = [];
     this.collided = [];
-    
-    this.show = function() {
-        drawBall(this.px, this.py, this.pa, this.size, this.color);
-    }
-    
-    this.move = function(dx, dy) {
-      this.px += dx;
-      this.py += dy;
-    }
-    
-    this.update1 = function(dt) {
-      //object gravity
-      for (b of balls) {
-        if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
-          this.forceBall(b, dt);
+  }
+  
+  this.update3 = function(dt) {
+      //collisions
+      if (collide) {
+        for (b of balls) {
+          if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
+            this.collideBall(b);
+          }
         }
       }
-      this.drag(dt);
-    }
-    
-    this.update2 = function(dt) {
-        //gravity
-        this.vx += gx * dt;
-        this.vy += gy * dt;
-        //move
-        this.px += this.vx * dt;
-        this.py += this.vy * dt;
-        this.pa += this.va * dt;
-        //new
-        this.newpx = [];
-        this.newpy = [];
-        this.newpa = [];
-        this.newvx = [];
-        this.newvy = [];
-        this.newva = [];
+      for (w of walls) {
+        if (w != dragObj || dragMode == undefined) {
+          this.collideWall(w);
+        }
+      }
+  }
+  
+  this.update4 = function(dt) {
+      //apply
+      let ave;
+      if (push) {
+        ave = average(this.newpx);// * this.newpx.length - this.px * this.newpx.length + this.px;
+        if (ave != null) {
+            this.px = ave;
+        }
+        ave = average(this.newpy);// * this.newpy.length - this.py * this.newpy.length + this.py;
+        if (ave != null) {
+            this.py = ave;
+        }
+      }
+      ave = average(this.newpa);
+      if (ave != null) {
+          this.pa = ave;
+      }
+      ave = average(this.newvx);
+      if (ave != null) {
+          this.vx = ave;
+      }
+      ave = average(this.newvy);
+      if (ave != null) {
+          this.vy = ave;
+      }
+      ave = average(this.newva);
+      if (ave != null) {
+          this.va = ave;
+      }
+      //walls
+      if (bounded) {
+        let fVal = 0;
+        let fMax = 0;
+        if (this.px < this.size / 2) {
+            this.px = this.size / 2;
+            if (this.vx < 0) {
+                fMax = - (1 + wallRestitution) * this.vx * wallFriction;
+                fVal = (this.vy - this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                if (fMax < Math.abs(fVal)) {
+                    fVal = fMax * Math.sign(fVal);
+                }
+                this.vx *= -wallRestitution;
+                this.vy -= fVal;
+                this.va += 2 * fVal / this.size / this.moiCoef;
+            }
+        }
+        if (this.px > gameWidth - this.size / 2) {
+            this.px = gameWidth - this.size / 2;
+            if (this.vx > 0) {
+                fMax = (1 + wallRestitution) * this.vx * wallFriction;
+                fVal = (this.vy + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                if (fMax < Math.abs(fVal)) {
+                    fVal = fMax * Math.sign(fVal);
+                }
+                this.vx *= -wallRestitution;
+                this.vy -= fVal;
+                this.va -= 2 * fVal / this.size / this.moiCoef;
+            }
+        }
+        if (this.py < this.size / 2) {
+            this.py = this.size / 2;
+            if (this.vy < 0) {
+                fMax = - (1 + wallRestitution) * this.vy * wallFriction;
+                fVal = (this.vx + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                if (fMax < Math.abs(fVal)) {
+                    fVal = fMax * Math.sign(fVal);
+                }
+                this.vy *= -wallRestitution;
+                this.vx -= fVal;
+                this.va -= 2 * fVal / this.size / this.moiCoef;
+            }
+        }
+        if (this.py > gameHeight - this.size / 2) {
+            this.py = gameHeight - this.size / 2;
+            if (this.vy > 0) {
+                fMax = (1 + wallRestitution) * this.vy * wallFriction;
+                fVal = (this.vx - this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                if (fMax < Math.abs(fVal)) {
+                    fVal = fMax * Math.sign(fVal);
+                }
+                this.vy *= -wallRestitution;
+                this.vx -= fVal;
+                this.va += 2 * fVal / this.size / this.moiCoef;
+            }
+        }
         this.collided = [];
+      }
     }
-    
-    this.update3 = function(dt) {
-        //collisions
-        if (collide) {
-          for (b of balls) {
-            if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
-              this.collideBall(b);
-            }
-          }
-        }
-        for (w of walls) {
-          if (w != dragObj || dragMode == undefined) {
-            this.collideWall(w);
-          }
-        }
+  
+  this.drag = function(dt) {
+    if ((this.vx != 0 || this.vy != 0) && (dragCoef0 != 0 || dragCoef1 != 0 || dragCoef2 != 0)) {
+      let vel = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      let mag = (dragCoef0 / vel + dragCoef1 + dragCoef2 * vel) * dt / this.mass;
+      if (mag < 1) {
+        this.vx -= mag * this.vx;
+        this.vy -= mag * this.vy;
+      } else {
+        this.vx = 0;
+        this.vy = 0;
+      }
     }
-    
-    this.update4 = function(dt) {
-        //apply
-        let ave;
-        if (push) {
-          ave = average(this.newpx);// * this.newpx.length - this.px * this.newpx.length + this.px;
-          if (ave != null) {
-              this.px = ave;
+  }
+  
+  this.forceBall = function(b, dt) {
+    if (G != 0) {
+      let distance = dist(this.px, this.py, b.px, b.py);
+      let mag = G / distance ** 3 * dt;
+      this.vx += mag * b.mass * (b.px - this.px);
+      this.vy += mag * b.mass * (b.py - this.py);
+      b.vx += mag * this.mass * (this.px - b.px);
+      b.vy += mag * this.mass * (this.py - b.py);
+      b.collided.push(this);
+    }
+  } //gravity
+  
+  this.collideBall = function(b) {
+      let sqDistance = sqdist(this.px, this.py, b.px, b.py);
+      if ((this.size + b.size) * (this.size + b.size) > 4 * sqDistance) {
+          
+          let curDist = Math.sqrt(sqDistance);
+          let targetDist = (1 + eps) * (this.size + b.size) / 2;
+          let pushFactor = (targetDist - curDist) / curDist * b.mass / (this.mass + b.mass);
+          let bPushFactor = (targetDist - curDist) / curDist * this.mass / (this.mass + b.mass);
+          let this_pxCol = this.px - (b.px - this.px) * pushFactor;
+          let this_pyCol = this.py - (b.py - this.py) * pushFactor;
+          let b_pxCol = b.px - (this.px - b.px) * bPushFactor;
+          let b_pyCol = b.py - (this.py - b.py) * bPushFactor;
+          if (!isNaN(this_pxCol) && !(isNaN(this_pyCol))) {
+              this.newpx.push(this_pxCol);
+              this.newpy.push(this_pyCol);
           }
-          ave = average(this.newpy);// * this.newpy.length - this.py * this.newpy.length + this.py;
-          if (ave != null) {
-              this.py = ave;
+          if (!isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
+              b.newpx.push(b_pxCol);
+              b.newpy.push(b_pyCol);
           }
-        }
-        ave = average(this.newpa);
-        if (ave != null) {
-            this.pa = ave;
-        }
-        ave = average(this.newvx);
-        if (ave != null) {
-            this.vx = ave;
-        }
-        ave = average(this.newvy);
-        if (ave != null) {
-            this.vy = ave;
-        }
-        ave = average(this.newva);
-        if (ave != null) {
-            this.va = ave;
-        }
-        //walls
-        if (bounded) {
-          let fVal = 0;
-          let fMax = 0;
-          if (this.px < this.size / 2) {
-              this.px = this.size / 2;
-              if (this.vx < 0) {
-                  /*fMax = this.vy / 3 - this.va * this.size / 6;
-                  if (fMax > 0) {
-                      fVal = Math.min(fMax, - (1 + wallRestitution) * this.vx * wallFriction);
-                  } else {
-                      fVal = Math.max(fMax, (1 + wallRestitution) * this.vx * wallFriction);
-                  }*/
-                  fMax = - (1 + wallRestitution) * this.vx * wallFriction;
-                  fVal = this.vy / 3 - this.va * this.size / 6;
-                  if (fMax < Math.abs(fVal)) {
-                      fVal = fMax * Math.sign(fVal);
-                  }
-                  this.vx *= -wallRestitution;
-                  this.vy -= fVal;
-                  this.va += fVal * this.mass * this.size / this.moi / 2;
+          
+          sqDistance = sqdist(this.px, this.py, b.px, b.py);
+          vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
+          if (/*vDotp >= 0 && */!isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
+              let normalVelMag = (1 + ballRestitution) / (this.mass + b.mass) * vDotp / sqDistance;
+              let normalVelX = normalVelMag * (b_pxCol - this_pxCol);
+              let normalVelY = normalVelMag * (b_pyCol - this_pyCol);
+              
+              let distance = dist(this_pxCol, this_pyCol, b_pxCol, b_pyCol);
+              let vDotSide = ((this.vx - b.vx) * (this_pyCol - b_pyCol) + (this.vy - b.vy) * (b_pxCol - this_pxCol)) / distance;
+              let sideVel = vDotSide + (this.va * this.size + b.va * b.size) / 2;
+              let sideVelAng = sideVel / distance;
+              let sideVelX = sideVelAng * (this_pyCol - b_pyCol);
+              let sideVelY = sideVelAng * (b_pxCol - this_pxCol);
+              let frictionVelMag = (sideVel > 0 ? 1 : -1) * Math.min(Math.abs(sideVel) / (1 + 1 / this.moiCoef) / (this.mass + b.mass), Math.abs(ballFriction * normalVelMag));
+              let frictionVelAng = frictionVelMag / sideVel;
+              let frictionVelX = frictionVelAng * sideVelX;
+              let frictionVelY = frictionVelAng * sideVelY;
+              
+              if (!isNaN(normalVelX + frictionVelX)) {
+                  this.newvx.push(this.vx - b.mass * (normalVelX + frictionVelX));
+                  b.newvx.push(b.vx + this.mass * (normalVelX + frictionVelX));
               }
-          }
-          if (this.px > gameWidth - this.size / 2) {
-              this.px = gameWidth - this.size / 2;
-              if (this.vx > 0) {
-                  /*sideVel = this.vy / 3 + this.va * this.size / 6;
-                  if (sideVel > 0) {
-                      fVal = Math.min(sideVel, (1 + wallRestitution) * this.vx * wallFriction);
-                  } else {
-                      fVal = Math.max(sideVel, - (1 + wallRestitution) * this.vx * wallFriction);
-                  }*/
-                  fMax = (1 + wallRestitution) * this.vx * wallFriction;
-                  fVal = this.vy / 3 + this.va * this.size / 6;
-                  if (fMax < Math.abs(fVal)) {
-                      fVal = fMax * Math.sign(fVal);
-                  }
-                  this.vx *= -wallRestitution;
-                  this.vy -= fVal;
-                  this.va -= fVal * this.mass * this.size / this.moi / 2;
+              if (!isNaN(normalVelY + frictionVelY)) {
+                  this.newvy.push(this.vy - b.mass * (normalVelY + frictionVelY));
+                  b.newvy.push(b.vy + this.mass * (normalVelY + frictionVelY));
               }
-          }
-          if (this.py < this.size / 2) {
-              this.py = this.size / 2;
-              if (this.vy < 0) {
-                  /*sideVel = this.vx / 3 + this.va * this.size / 6;
-                  if (sideVel > 0) {
-                      fVal = Math.min(sideVel, - (1 + wallRestitution) * this.vy * wallFriction);
-                  } else {
-                      fVal = Math.max(sideVel, (1 + wallRestitution) * this.vy * wallFriction);
-                  }*/
-                  fMax = - (1 + wallRestitution) * this.vy * wallFriction;
-                  fVal = this.vx / 3 + this.va * this.size / 6;
-                  if (fMax < Math.abs(fVal)) {
-                      fVal = fMax * Math.sign(fVal);
-                  }
-                  this.vy *= -wallRestitution;
-                  this.vx -= fVal;
-                  this.va -= fVal * this.mass * this.size / this.moi / 2;
+              if (!isNaN(frictionVelMag)) {
+                  this.newva.push(this.va - 2 * b.mass * frictionVelMag / this.size / this.moiCoef);
+                  b.newva.push(b.va - this.mass * 2 * frictionVelMag / this.size / this.moiCoef);
               }
+              b.collided.push(this);
+              
           }
-          if (this.py > gameHeight - this.size / 2) {
-              this.py = gameHeight - this.size / 2;
-              if (this.vy > 0) {
-                  /*fMax = this.vx / 3 - this.va * this.size / 6;
-                  if (fMax > 0) {
-                      fVal = Math.min(fMax, (1 + wallRestitution) * this.vy * wallFriction);
-                  } else {
-                      fVal = Math.max(fMax, - (1 + wallRestitution) * this.vy * wallFriction);
-                  }*/
-                  fMax = (1 + wallRestitution) * this.vy * wallFriction;
-                  fVal = this.vx / 3 - this.va * this.size / 6;
-                  if (fMax < Math.abs(fVal)) {
-                      fVal = fMax * Math.sign(fVal);
-                  }
-                  this.vy *= -wallRestitution;
-                  this.vx -= fVal;
-                  this.va += fVal * this.mass * this.size / this.moi / 2;
+      }
+      
+  }
+  
+  this.collideWall = function(w) {
+      switch (w.wallType) {
+          case "rect":
+              this.collideRectWall(w);
+              break;
+          case "tri":
+              this.collideTriWall(w);
+              break;
+          case "circle":
+              this.collideCircleWall(w);
+              break;
+          case "list":
+              for (w1 of w.walls) {
+                  this.collideWall(w1);
               }
+              break;
+      }
+  }
+  
+  this.collideRectWall = function(w) {
+      
+      let dist1 = (this.px - w.centerX) * w.normalX1 + (this.py - w.centerY) * w.normalY1;
+      let dist2 = (this.px - w.centerX) * w.normalX2 + (this.py - w.centerY) * w.normalY2;
+      let edgeDist1 = 2 * Math.abs(dist1) - w.size1;
+      let edgeDist2 = 2 * Math.abs(dist2) - w.size2;
+      let effSize1 = (edgeDist2 > 0 && edgeDist2 < this.size ? Math.sqrt(this.size * this.size - edgeDist2 * edgeDist2) : this.size);
+      let effSize2 = (edgeDist1 > 0 && edgeDist1 < this.size ? Math.sqrt(this.size * this.size - edgeDist1 * edgeDist1) : this.size);
+      if (edgeDist1 <= effSize1 && edgeDist2 <= effSize2) {
+          let v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
+          let v2 = this.vx * w.normalX2 + this.vy * w.normalY2;
+          let pxCol;
+          let pyCol;
+          if (effSize1 - edgeDist1 <= effSize2 - edgeDist2) {
+              let pushDist = /*(1 + eps) * */((effSize1 + w.size1) / 2 - Math.abs(dist1)) * Math.sign(dist1);
+              pxCol = this.px + pushDist * w.normalX1;
+              pyCol = this.py + pushDist * w.normalY1;
+              this.newpx.push(pxCol);
+              this.newpy.push(pyCol);
+          } else {
+              let pushDist = ((effSize2 + w.size2) / 2 - Math.abs(dist2)) * Math.sign(dist2);
+              pxCol = this.px + pushDist * w.normalX2;
+              pyCol = this.py + pushDist * w.normalY2;
+              this.newpx.push(pxCol);
+              this.newpy.push(pyCol);
           }
-          this.collided = [];
+          dist1 = (pxCol - w.centerX) * w.normalX1 + (pyCol - w.centerY) * w.normalY1;
+          dist2 = (pxCol - w.centerX) * w.normalX2 + (pyCol - w.centerY) * w.normalY2;
+          if (2 * Math.abs(dist2) < w.size2) {
+              let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+              let fVal = (v2 + Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+              if (fMax < Math.abs(fVal)) {
+                  fVal = fMax * Math.sign(fVal);
+              }
+              this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalX2);
+              this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) - fVal * w.normalY2);
+              this.newva.push(this.va - Math.sign(dist1) * 2 * fVal / this.size / this.moiCoef);
+          } else if (2 * Math.abs(dist1) < w.size1) {
+              let fMax = Math.abs((1 + wallRestitution) * v2 * wallFriction);
+              let fVal = (v1 - Math.sign(dist2) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+              if (fMax < Math.abs(fVal)) {
+                  fVal = fMax * Math.sign(fVal);
+              }
+              this.newvx.push(this.vx - v2 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalX1);
+              this.newvy.push(this.vy - v2 * w.normalY2 * (1 + wallRestitution) - fVal * w.normalY1);
+              this.newva.push(this.va + Math.sign(dist2) * 2 * fVal / this.size / this.moiCoef);
+          } else {
+              let edgeDist1 = dist1 - Math.sign(dist1) * w.size1 / 2;
+              let edgeDist2 = dist2 - Math.sign(dist2) * w.size2 / 2;
+              let distance = Math.sqrt(edgeDist1 * edgeDist1 + edgeDist2 * edgeDist2);
+              let normalX = (edgeDist1 * w.normalX1 + edgeDist2 * w.normalX2) / distance;
+              let normalY = (edgeDist1 * w.normalY1 + edgeDist2 * w.normalY2) / distance;
+              v1 = this.vx * normalX + this.vy * normalY;
+              v2 = this.vx * normalY - this.vy * normalX;
+              
+              let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+              let fVal = (v2 - Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+              if (fMax < Math.abs(fVal)) {
+                  fVal = fMax * Math.sign(fVal);
+              }
+              this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
+              this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
+              this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+          }
+      }
+      
+  }
+  
+  this.collideTriWall = function(w) {
+      
+      let sideDist = [];
+      let normalDist = [];
+      let sides = false;
+      for (let n = 0; n < w.num; n++) {
+        sideDist.push(Math.abs((this.px - w.midX[n]) * w.sideX[n] + (this.py - w.midY[n]) * w.sideY[n]));
+        normalDist.push((this.px - w.x[n]) * w.normalX[n] + (this.py - w.y[n]) * w.normalY[n]);
+        sides = (Math.abs(2 * normalDist[n]) <= this.size && 2 * sideDist[n] <= w.size[n] ? true : sides)
+      }
+      
+      let vertex;
+      if (!sides) {
+        let vertexSqdist;
+        let bestSqdist = Number.POSITIVE_INFINITY;
+        for (let n = 0; n < w.num; n++) {
+          vertexSqdist = sqdist(this.px, this.py, w.x[n], w.y[n])
+          if (4 * vertexSqdist <= this.size * this.size && vertexSqdist < bestSqdist) {
+            vertex = n;
+            bestSqdist = vertexSqdist;
+          }
         }
       }
-    
-    this.drag = function(dt) {
-      if ((this.vx != 0 || this.vy != 0) && (dragCoef0 != 0 || dragCoef1 != 0 || dragCoef2 != 0)) {
-        let vel = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        let mag = (dragCoef0 / vel + dragCoef1 + dragCoef2 * vel) * dt / this.mass;
-        if (mag < 1) {
-          this.vx -= mag * this.vx;
-          this.vy -= mag * this.vy;
+      
+      if (sides || vertex != undefined) {
+        let side = 0;
+        for (let n = 1; n < w.num; n++) {
+          if (normalDist[n] > normalDist[side]) {
+            side = n;
+          }
+        }
+        
+        let pushDist = (vertex == undefined ? this.size : Math.sqrt(this.size * this.size - (2 * sideDist[side] - w.size[side]) ** 2)) / 2 - normalDist[side];
+        let pxCol = this.px + pushDist * w.normalX[side];
+        let pyCol = this.py + pushDist * w.normalY[side];
+        this.newpx.push(pxCol);
+        this.newpy.push(pyCol);
+        
+        let sideX;
+        let sideY;
+        let normalX;
+        let normalY;
+        if (vertex == undefined) {
+          sideX = w.sideX[side];
+          sideY = w.sideY[side];
+          normalX = w.normalX[side];
+          normalY = w.normalY[side];
         } else {
-          this.vx = 0;
-          this.vy = 0;
-        }
-      }
-    }
-    
-    this.forceBall = function(b, dt) {
-      if (G != 0) {
-        let distance = dist(this.px, this.py, b.px, b.py);
-        let mag = G / distance ** 3 * dt;
-        this.vx += mag * b.mass * (b.px - this.px);
-        this.vy += mag * b.mass * (b.py - this.py);
-        b.vx += mag * this.mass * (this.px - b.px);
-        b.vy += mag * this.mass * (this.py - b.py);
-        b.collided.push(this);
-      }
-    } //gravity
-    
-    this.collideBall = function(b) {
-        let sqDistance = sqdist(this.px, this.py, b.px, b.py);
-        if ((this.size + b.size) * (this.size + b.size) > 4 * sqDistance) {
-            //push
-            //overcomplicated and buggy
-            /*let vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
-            let vSqDist = sqdist(this.vx, this.vy, b.vx, b.vy);
-            let targetSqDistance = (this.size + b.size) * (this.size + b.size) / 4;
-            let pushFactor = 1.1 * (Math.sqrt(vDotp * vDotp + vSqDist * (targetSqDistance - sqDistance)) - vDotp) / vSqDist;
-            let this_pxCol = this.px - this.vx * pushFactor;
-            let this_pyCol = this.py - this.vy * pushFactor;
-            let b_pxCol = b.px - b.vx * pushFactor;
-            let b_pyCol = b.py - b.vy * pushFactor;
-            this.newpx.push(this_pxCol);
-            this.newpy.push(this_pyCol);*/
-            
-            let curDist = Math.sqrt(sqDistance);
-            let targetDist = (1 + eps) * (this.size + b.size) / 2;
-            let pushFactor = (targetDist - curDist) / curDist * b.mass / (this.mass + b.mass);
-            let bPushFactor = (targetDist - curDist) / curDist * this.mass / (this.mass + b.mass);
-            let this_pxCol = this.px - (b.px - this.px) * pushFactor;
-            let this_pyCol = this.py - (b.py - this.py) * pushFactor;
-            let b_pxCol = b.px - (this.px - b.px) * bPushFactor;
-            let b_pyCol = b.py - (this.py - b.py) * bPushFactor;
-            if (!isNaN(this_pxCol) && !(isNaN(this_pyCol))) {
-                this.newpx.push(this_pxCol);
-                this.newpy.push(this_pyCol);
-            }
-            if (!isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
-                b.newpx.push(b_pxCol);
-                b.newpy.push(b_pyCol);
-            }
-            
-            sqDistance = sqdist(this.px, this.py, b.px, b.py);
-            vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
-            if (/*vDotp >= 0 && */!isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
-                let normalVelMag = (1 + ballRestitution) / (this.mass + b.mass) * vDotp / sqDistance;
-                let normalVelX = normalVelMag * (b_pxCol - this_pxCol);
-                let normalVelY = normalVelMag * (b_pyCol - this_pyCol);
-                
-                let distance = dist(this_pxCol, this_pyCol, b_pxCol, b_pyCol);
-                let vDotSide = ((this.vx - b.vx) * (this_pyCol - b_pyCol) + (this.vy - b.vy) * (b_pxCol - this_pxCol)) / distance;
-                let sideVel = vDotSide + (this.va * this.size + b.va * b.size) / 2;
-                let sideVelAng = sideVel / distance;
-                let sideVelX = sideVelAng * (this_pyCol - b_pyCol);
-                let sideVelY = sideVelAng * (b_pxCol - this_pxCol);
-                let frictionVelMag;
-                if (sideVel > 0) {
-                    frictionVelMag = Math.min(sideVel / (this.mass + b.mass) / 3, ballFriction * normalVelMag);
-                } else {
-                    frictionVelMag = Math.max(sideVel / (this.mass + b.mass) / 3, - ballFriction * normalVelMag);
-                }
-                let frictionVelAng = frictionVelMag / sideVel;
-                let frictionVelX = frictionVelAng * sideVelX;
-                let frictionVelY = frictionVelAng * sideVelY;
-                
-                if (!isNaN(normalVelX + frictionVelX)) {
-                    this.newvx.push(this.vx - b.mass * (normalVelX + frictionVelX));
-                    b.newvx.push(b.vx + this.mass * (normalVelX + frictionVelX));
-                }
-                if (!isNaN(normalVelY + frictionVelY)) {
-                    this.newvy.push(this.vy - b.mass * (normalVelY + frictionVelY));
-                    b.newvy.push(b.vy + this.mass * (normalVelY + frictionVelY));
-                }
-                if (!isNaN(frictionVelMag)) {
-                    this.newva.push(this.va - b.mass * frictionVelMag * this.mass * this.size / this.moi / 2);
-                    b.newva.push(b.va - this.mass * frictionVelMag * b.mass * b.size / b.moi / 2);
-                }
-                b.collided.push(this);
-                
-                /*let vDotSide1 = ((this.vx - b.vx) * (this_pyCol - b_pyCol) + (this.vy - b.vy) * (b_pxCol - this_pxCol)) / distance;
-                let sideVel1 = vDotSide1 + (this.va * this.size + b.va * b.size) / 2;
-                document.getElementById("p").innerHTML = vDotSide + " -> " + vDotSide1 + " = (" + (this.vx - b.vx) + " * " + (this_pyCol - b_pyCol) + " + " + (this.vy - b.vy) + " * " + (b_pxCol - this_pxCol) + ") / " + distance;
-                document.getElementById("q").innerHTML = sideVel + " -> " + sideVel1 + " = " + vDotSide1 + " + (" + this.va + " * " + this.size + " + " + b.va + " * " + b.size + ") / 2";*/
-            }
+          let distance = dist(w.x[vertex], w.y[vertex], pxCol, pyCol);
+          normalX = (pxCol - w.x[vertex]) / distance;
+          normalY = (pyCol - w.y[vertex]) / distance;
+          sideX = normalY * w.dir;
+          sideY = -normalX * w.dir;
         }
         
-    }
-    
-    this.collideWall = function(w) {
-        switch (w.wallType) {
-            case "rect":
-                this.collideRectWall(w);
-                break;
-            case "circle":
-                this.collideCircleWall(w);
-                break;
-            case "list":
-                for (w1 of w.walls) {
-                    this.collideWall(w1);
-                }
-                break;
+        let sideV = this.vx * sideX + this.vy * sideY;
+        let normalV = this.vx * normalX + this.vy * normalY;
+        let fMax = Math.abs((1 + wallRestitution) * normalV * wallFriction);
+        let fVal = (sideV + w.dir * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+        if (fMax < Math.abs(fVal)) {
+          fVal = fMax * Math.sign(fVal);
         }
-    }
-    
-    this.collideRectWall = function(w) {
+        this.newvx.push(this.vx - normalV * normalX * (1 + wallRestitution) - fVal * sideX);
+        this.newvy.push(this.vy - normalV * normalY * (1 + wallRestitution) - fVal * sideY);
+        this.newva.push(this.va - 2 * w.dir * fVal / this.size / this.moiCoef);
+      }
+      
+  }
+  
+  this.collideCircleWall = function(w) {
+      let distance = dist(w.x, w.y, this.px, this.py);
+      let dist1 = distance - w.r1 + this.size / 2;
+      let dist2 = w.r2 - distance + this.size / 2;//check the sign of dist2 in later code
+      
+      if (dist1 >= 0 && dist2 >= 0) {
+        let ang = angle(w.x, w.y, this.px, this.py);
+        let distA1 = (this.px - w.x) * w.ax1 + (this.py - w.y) * w.ay1;
+        let distA2 = (this.px - w.x) * w.ax2 + (this.py - w.y) * w.ay2;
+        let offsetA1 = Math.abs(distA1 * 2 - w.r1 - w.r2) + w.r1 - w.r2;
+        let offsetA2 = Math.abs(distA2 * 2 - w.r1 - w.r2) + w.r1 - w.r2;
+        let effSize1 = (w.r1 <= distA1 && distA1 <= w.r2 ? this.size / 2 : (offsetA1 < this.size ? Math.sqrt(this.size * this.size - offsetA1 * offsetA1) / 2 : 0));
+        let effSize2 = (w.r1 <= distA2 && distA2 <= w.r2 ? this.size / 2 : (offsetA2 < this.size ? Math.sqrt(this.size * this.size - offsetA2 * offsetA2) / 2 : 0));
+        let offset1 = (this.px - w.x) * w.normalX1 + (this.py - w.y) * w.normalY1;
+        let offset2 = (this.px - w.x) * w.normalX2 + (this.py - w.y) * w.normalY2;
+        let angDist1 = angMod(ang - w.a1);
+        let angDist2 = angMod(w.a2 - ang);
+        let pxCol;
+        let pyCol;
         
-        let dist1 = (this.px - w.centerX) * w.normalX1 + (this.py - w.centerY) * w.normalY1;
-        let dist2 = (this.px - w.centerX) * w.normalX2 + (this.py - w.centerY) * w.normalY2;
-        let edgeDist1 = 2 * Math.abs(dist1) - w.size1;
-        let edgeDist2 = 2 * Math.abs(dist2) - w.size2;
-        let effSize1 = (edgeDist2 > 0 && edgeDist2 < this.size ? Math.sqrt(this.size * this.size - edgeDist2 * edgeDist2) : this.size);
-        let effSize2 = (edgeDist1 > 0 && edgeDist1 < this.size ? Math.sqrt(this.size * this.size - edgeDist1 * edgeDist1) : this.size);
-        if (edgeDist1 <= effSize1 && edgeDist2 <= effSize2) {
-            let v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
-            let v2 = this.vx * w.normalX2 + this.vy * w.normalY2;
-            let pxCol;
-            let pyCol;
-            if (effSize1 - edgeDist1 <= effSize2 - edgeDist2) {
-                let pushDist = (1 + eps) * ((effSize1 + w.size1) / 2 - Math.abs(dist1)) * Math.sign(dist1);
-                pxCol = this.px + pushDist * w.normalX1;
-                pyCol = this.py + pushDist * w.normalY1;
-                this.newpx.push(pxCol);
-                this.newpy.push(pyCol);
-            } else {
-                let pushDist = ((effSize2 + w.size2) / 2 - Math.abs(dist2)) * Math.sign(dist2);
-                pxCol = this.px + pushDist * w.normalX2;
-                pyCol = this.py + pushDist * w.normalY2;
-                this.newpx.push(pxCol);
-                this.newpy.push(pyCol);
+        if (angDist1 + angDist2 <= Math.PI * 2 || Math.abs(offset1) <= effSize1 || Math.abs(offset2) <= effSize2) {
+            let v1;
+            let v2;
+            let fMax;
+            let fVal;
+            let normalX;
+            let normalY;
+            let side = false;
+            
+            switch (Math.min(dist1, dist2, Math.abs(effSize1 - offset1), Math.abs(effSize2 - offset2))) {
+                case dist1:
+                    side = true;
+                case dist2:
+                    normalX = (this.px - w.x) / distance * (side ? -1 : 1);
+                    normalY = (this.py - w.y) / distance * (side ? -1 : 1);
+                    pxCol = this.px + (side ? dist1 : dist2) * normalX;
+                    pyCol = this.py + (side ? dist1 : dist2) * normalY;
+                    this.newpx.push(pxCol);
+                    this.newpy.push(pyCol);
+                    break;
+                case Math.abs(effSize1 - offset1):
+                    pxCol = this.px + Math.abs(effSize1 - offset1) * w.normalX1;
+                    pyCol = this.py + Math.abs(effSize1 - offset1) * w.normalY1;
+                    this.newpx.push(pxCol);
+                    this.newpy.push(pyCol);
+                    break;
+                case Math.abs(effSize2 - offset2):
+                    pxCol = this.px + Math.abs(effSize2 - offset2) * w.normalX2;
+                    pyCol = this.py + Math.abs(effSize2 - offset2) * w.normalY2;
+                    this.newpx.push(pxCol);
+                    this.newpy.push(pyCol);
+                    break;
             }
-            dist1 = (pxCol - w.centerX) * w.normalX1 + (pyCol - w.centerY) * w.normalY1;
-            dist2 = (pxCol - w.centerX) * w.normalX2 + (pyCol - w.centerY) * w.normalY2;
-            if (2 * Math.abs(dist2) < w.size2) {
-                let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
-                let fVal = v2 / 3 + Math.sign(dist1) * this.va * this.size / 6;
-                if (fMax < Math.abs(fVal)) {
-                    fVal = fMax * Math.sign(fVal);
-                }
-                this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalX2);
-                this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) - fVal * w.normalY2);
-                this.newva.push(this.va - Math.sign(dist1) * fVal * this.mass * this.size / this.moi / 2);
-            } else if (2 * Math.abs(dist1) < w.size1) {
-                let fMax = Math.abs((1 + wallRestitution) * v2 * wallFriction);
-                let fVal = v1 / 3 - Math.sign(dist2) * this.va * this.size / 6;
-                if (fMax < Math.abs(fVal)) {
-                    fVal = fMax * Math.sign(fVal);
-                }
-                this.newvx.push(this.vx - v2 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalX1);
-                this.newvy.push(this.vy - v2 * w.normalY2 * (1 + wallRestitution) - fVal * w.normalY1);
-                this.newva.push(this.va + Math.sign(dist2) * fVal * this.mass * this.size / this.moi / 2);
-            } else {
-                let edgeDist1 = dist1 - Math.sign(dist1) * w.size1 / 2;
-                let edgeDist2 = dist2 - Math.sign(dist2) * w.size2 / 2;
-                let distance = Math.sqrt(edgeDist1 * edgeDist1 + edgeDist2 * edgeDist2);
-                let normalX = (edgeDist1 * w.normalX1 + edgeDist2 * w.normalX2) / distance;
-                let normalY = (edgeDist1 * w.normalY1 + edgeDist2 * w.normalY2) / distance;
+            distance = dist(w.x, w.y, pxCol, pyCol);
+            ang = angle(w.x, w.y, pxCol, pyCol);
+            offset1 = (pxCol - w.x) * w.normalX1 + (pyCol - w.y) * w.normalY1;
+            offset2 = (pxCol - w.x) * w.normalX2 + (pyCol - w.y) * w.normalY2;
+            if (distance < w.r1 - this.size / 2 + eps || distance > w.r2 + this.size / 2 - eps) {
                 v1 = this.vx * normalX + this.vy * normalY;
                 v2 = this.vx * normalY - this.vy * normalX;
-                
-                let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
-                let fVal = v2 / 3 - Math.sign(dist1) * this.va * this.size / 6;
+                fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
                 this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                 this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
+                this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+            } else if (Math.abs(offset1 * 2 - this.size) <= eps || Math.abs(offset2 * 2 - this.size) <= eps) {
+                if (Math.abs(Math.PI - angDist1) >= Math.abs(Math.PI - angDist2)) {
+                    v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
+                    v2 = this.vx * w.normalY1 - this.vy * w.normalX1;
+                    fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                    fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                    if (fMax < Math.abs(fVal)) {
+                        fVal = fMax * Math.sign(fVal);
+                    }
+                    this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalY1);
+                    this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) + fVal * w.normalX1);
+                    this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+                } else {
+                    v1 = this.vx * w.normalX2 + this.vy * w.normalY2;
+                    v2 = this.vx * w.normalY2 - this.vy * w.normalX2;
+                    fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                    fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                    if (fMax < Math.abs(fVal)) {
+                        fVal = fMax * Math.sign(fVal);
+                    }
+                    this.newvx.push(this.vx - v1 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalY2);
+                    this.newvy.push(this.vy - v1 * w.normalY2 * (1 + wallRestitution) + fVal * w.normalX2);
+                    this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+                }
+            } else {
+                let r = (2 * distance < w.r1 + w.r2 ? w.r1 : w.r2);
+                let ax = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ax1 : w.ax2);
+                let ay = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ay1 : w.ay2);
+                let distX = pxCol - w.x - r * ax;
+                let distY = pyCol - w.y - r * ay;
+                let distMag = Math.sqrt(distX * distX + distY * distY);
+                let normalX = distX / distMag;
+                let normalY = distY / distMag;
+                v1 = this.vx * normalX + this.vy * normalY;
+                v2 = this.vx * normalY - this.vy * normalX;
+                
+                let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                let fVal = (v2 + Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+                if (fMax < Math.abs(fVal)) {
+                    fVal = fMax * Math.sign(fVal);
+                }
+                this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
+                this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
+                this.newva.push(this.va - Math.sign(dist1) * 2 * fVal / this.size / this.moiCoef);
             }
         }
-        
-    }
-    
-    this.collideCircleWall = function(w) {
-        let distance = dist(w.x, w.y, this.px, this.py);
-        let dist1 = distance - w.r1 + this.size / 2;
-        let dist2 = w.r2 - distance + this.size / 2;//check the sign of dist2 in later code
-        
-        if (dist1 >= 0 && dist2 >= 0) {
-          let ang = angle(w.x, w.y, this.px, this.py);
-          let distA1 = (this.px - w.x) * w.ax1 + (this.py - w.y) * w.ay1;
-          let distA2 = (this.px - w.x) * w.ax2 + (this.py - w.y) * w.ay2;
-          let offsetA1 = Math.abs(distA1 * 2 - w.r1 - w.r2) + w.r1 - w.r2;
-          let offsetA2 = Math.abs(distA2 * 2 - w.r1 - w.r2) + w.r1 - w.r2;
-          let effSize1 = (w.r1 <= distA1 && distA1 <= w.r2 ? this.size / 2 : (offsetA1 < this.size ? Math.sqrt(this.size * this.size - offsetA1 * offsetA1) / 2 : 0));
-          let effSize2 = (w.r1 <= distA2 && distA2 <= w.r2 ? this.size / 2 : (offsetA2 < this.size ? Math.sqrt(this.size * this.size - offsetA2 * offsetA2) / 2 : 0));
-          let offset1 = (this.px - w.x) * w.normalX1 + (this.py - w.y) * w.normalY1;
-          let offset2 = (this.px - w.x) * w.normalX2 + (this.py - w.y) * w.normalY2;
-          let angDist1 = angMod(ang - w.a1);
-          let angDist2 = angMod(w.a2 - ang);
-          let pxCol;
-          let pyCol;
-          
-          if (angDist1 + angDist2 <= Math.PI * 2 || Math.abs(offset1) <= effSize1 || Math.abs(offset2) <= effSize2) {
-              let v1;
-              let v2;
-              let fMax;
-              let fVal;
-              let normalX;
-              let normalY;
-              let side = false;
-              
-              switch (Math.min(dist1, dist2, Math.abs(effSize1 - offset1), Math.abs(effSize2 - offset2))) {
-                  case dist1:
-                      side = true;
-                  case dist2:
-                      normalX = (this.px - w.x) / distance * (side ? -1 : 1);
-                      normalY = (this.py - w.y) / distance * (side ? -1 : 1);
-                      pxCol = this.px + (side ? dist1 : dist2) * normalX;
-                      pyCol = this.py + (side ? dist1 : dist2) * normalY;
-                      this.newpx.push(pxCol);
-                      this.newpy.push(pyCol);
-                      break;
-                  case Math.abs(effSize1 - offset1):
-                      pxCol = this.px + Math.abs(effSize1 - offset1) * w.normalX1;
-                      pyCol = this.py + Math.abs(effSize1 - offset1) * w.normalY1;
-                      this.newpx.push(pxCol);
-                      this.newpy.push(pyCol);
-                      break;
-                  case Math.abs(effSize2 - offset2):
-                      pxCol = this.px + Math.abs(effSize2 - offset2) * w.normalX2;
-                      pyCol = this.py + Math.abs(effSize2 - offset2) * w.normalY2;
-                      this.newpx.push(pxCol);
-                      this.newpy.push(pyCol);
-                      break;
-              }
-              distance = dist(w.x, w.y, pxCol, pyCol);
-              ang = angle(w.x, w.y, pxCol, pyCol);
-              offset1 = (pxCol - w.x) * w.normalX1 + (pyCol - w.y) * w.normalY1;
-              offset2 = (pxCol - w.x) * w.normalX2 + (pyCol - w.y) * w.normalY2;
-              if (distance < w.r1 - this.size / 2 + eps || distance > w.r2 + this.size / 2 - eps) {
-                  v1 = this.vx * normalX + this.vy * normalY;
-                  v2 = this.vx * normalY - this.vy * normalX;
-                  fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
-                  fVal = v2 / 3 + this.va * this.size / 6;
-                  if (fMax < Math.abs(fVal)) {
-                      fVal = fMax * Math.sign(fVal);
-                  }
-                  this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
-                  this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                  this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
-              } else if (Math.abs(offset1 * 2 - this.size) <= eps || Math.abs(offset2 * 2 - this.size) <= eps) {
-                  if (Math.abs(Math.PI - angDist1) >= Math.abs(Math.PI - angDist2)) {
-                      v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
-                      v2 = this.vx * w.normalY1 - this.vy * w.normalX1;
-                      fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
-                      fVal = v2 / 3 + this.va * this.size / 6;
-                      if (fMax < Math.abs(fVal)) {
-                          fVal = fMax * Math.sign(fVal);
-                      }
-                      this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalY1);
-                      this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) + fVal * w.normalX1);
-                      this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
-                  } else {
-                      v1 = this.vx * w.normalX2 + this.vy * w.normalY2;
-                      v2 = this.vx * w.normalY2 - this.vy * w.normalX2;
-                      fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
-                      fVal = v2 / 3 + this.va * this.size / 6;
-                      if (fMax < Math.abs(fVal)) {
-                          fVal = fMax * Math.sign(fVal);
-                      }
-                      this.newvx.push(this.vx - v1 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalY2);
-                      this.newvy.push(this.vy - v1 * w.normalY2 * (1 + wallRestitution) + fVal * w.normalX2);
-                      this.newva.push(this.va - fVal * this.mass * this.size / this.moi / 2);
-                  }
-              } else {
-                  let r = (2 * distance < w.r1 + w.r2 ? w.r1 : w.r2);
-                  let ax = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ax1 : w.ax2);
-                  let ay = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ay1 : w.ay2);
-                  let distX = pxCol - w.x - r * ax;
-                  let distY = pyCol - w.y - r * ay;
-                  let distMag = Math.sqrt(distX * distX + distY * distY);
-                  let normalX = distX / distMag;
-                  let normalY = distY / distMag;
-                  v1 = this.vx * normalX + this.vy * normalY;
-                  v2 = this.vx * normalY - this.vy * normalX;
-                  
-                  let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
-                  let fVal = v2 / 3 + Math.sign(dist1) * this.va * this.size / 6;
-                  if (fMax < Math.abs(fVal)) {
-                      fVal = fMax * Math.sign(fVal);
-                  }
-                  this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
-                  this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
-                  this.newva.push(this.va - Math.sign(dist1) * fVal * this.mass * this.size / this.moi / 2);
-              }
-          }
-        }
-    }
-    
-    this.containsPoint = function(x, y) {
-        return sqdist(this.px, this.py, x, y) * 4 <= this.size * this.size;
-    }
-    
-    this.updateMOI = function() {
-      this.moi = this.moiCoef * this.mass * this.size ** 2 / 4;
-    }
-    
+      }
+  }
+  
+  this.containsPoint = function(x, y) {
+      return sqdist(this.px, this.py, x, y) * 4 <= this.size * this.size;
+  }
+  
+  this.setMOI = function(moi) {
+    this.moi = moi;
+    this.moiCoef = 4 * this.moi / this.mass / this.size ** 2;
+  }
+  
+  this.setMOICoef = function(moiCoef) {
+    this.moiCoef = moiCoef;
     this.updateMOI();
+  }
+  
+  this.updateMOI = function() {
+    this.moi = this.moiCoef * this.mass * this.size ** 2 / 4;
+  }
+  
+  this.setMOICoef(moiCoef);
 }
 
 function RectWall(x1, y1, x2, y2, size, color) {
@@ -859,6 +944,88 @@ function RectWall(x1, y1, x2, y2, size, color) {
         this.y2 = this.centerY - (normalY1 * this.size + normalX1 * this.size2) / 2;
         this.angle = angle(this.x1, this.y1, this.x2, this.y2);
     }
+}
+
+function TriWall(x, y, color) {
+  this.wallType = "tri";
+  this.x = x;
+  this.y = y;
+  this.color = color;
+  
+  this.num = x.length;
+  this.centerX = average(this.x);
+  this.centerY = average(this.y);
+  this.angle = angle(this.centerX, this.centerY, this.x[0], this.y[0]);
+  
+  this.dir = ((this.x[1] - this.x[0]) * (this.y[2] - this.y[1]) - (this.x[2] - this.x[1]) * (this.y[1] - this.y[0]) > 0 ? 1 : -1);
+  this.size = [];
+  this.midX = [];
+  this.midY = [];
+  this.sideX = [];
+  this.sideY = [];
+  this.normalX = [];
+  this.normalY = [];
+  for (let n = 0; n < this.num; n++) {
+    this.size.push(dist(this.x[n], this.y[n], this.x[(n + 1) % this.num], this.y[(n + 1) % this.num]));
+    this.midX.push((this.x[n] + this.x[(n + 1) % this.num]) / 2);
+    this.midY.push((this.y[n] + this.y[(n + 1) % this.num]) / 2);
+    this.sideX.push((this.x[n] - this.x[(n + 1) % this.num]) / this.size[n]);
+    this.sideY.push((this.y[n] - this.y[(n + 1) % this.num]) / this.size[n]);
+    this.normalX.push(-this.sideY[n] * this.dir);
+    this.normalY.push(this.sideX[n] * this.dir);
+  }
+  
+  this.show = function() {
+    drawTriWall(this.x, this.y, this.color);
+  }
+  
+  this.containsPoint = function(x, y) {
+    for (let n = 0; n < this.num; n++) {
+      if ((x - this.x[n]) * this.normalX[n] + (y - this.y[n]) * this.normalY[n] > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+  
+  this.move = function(dx, dy) {
+    for (let n = 0; n < this.num; n++) {
+      this.x[n] += dx;
+      this.y[n] += dy;
+      this.midX[n] += dx;
+      this.midY[n] += dy;
+    }
+    this.centerX += dx;
+    this.centerY += dy;
+  }
+  
+  this.rotate = function(da) {
+    let dax = Math.cos(da);
+    let day = Math.sin(da);
+    let newX;
+    let newY;
+    for (let n = 0; n < this.num; n++) {
+      newX = this.sideX[n] * dax - this.sideY[n] * day;
+      newY = this.sideX[n] * day + this.sideY[n] * dax;
+      this.sideX[n] = newX;
+      this.sideY[n] = newY;
+      newX = this.normalX[n] * dax - this.normalY[n] * day;
+      newY = this.normalX[n] * day + this.normalY[n] * dax;
+      this.normalX[n] = newX;
+      this.normalY[n] = newY;
+    }
+    for (let n = 0; n < this.num; n++) {
+      newX = (this.x[n] - this.centerX) * dax - (this.y[n] - this.centerY) * day + this.centerX;
+      newY = (this.x[n] - this.centerX) * day + (this.y[n] - this.centerY) * dax + this.centerY;
+      this.x[n] = newX;
+      this.y[n] = newY;
+      newX = (this.midX[n] - this.centerX) * dax - (this.midY[n] - this.centerY) * day + this.centerX;
+      newY = (this.midX[n] - this.centerX) * day + (this.midY[n] - this.centerY) * dax + this.centerY;
+      this.midX[n] = newX;
+      this.midY[n] = newY;
+    }
+    this.angle += da;
+  }
 }
 
 function CircleWall(x, y, r1, r2, a1, a2, color) {
@@ -921,13 +1088,9 @@ function CircleWall(x, y, r1, r2, a1, a2, color) {
     }
 }
 
-function WallList(w, convert = false) {
+function WallList(wList) {
     this.wallType = "list";
-    if (convert) {
-        this.walls = getWalls(w);
-    } else {
-        this.walls = w;
-    }
+    this.walls = wList;
     
     let num = 0;
     let totalX = 0;
@@ -947,14 +1110,12 @@ function WallList(w, convert = false) {
     this.angle = 0;
     
     this.show = function() {
-        for (w of this.walls) {
-            w.show();
-        }
+      drawWallList(this.walls);
     }
     
     this.containsPoint = function(x, y) {
-        for (w of this.walls) {
-            if (w.containsPoint(x, y)) {
+        for (t of this.walls) {
+            if (t.containsPoint(x, y)) {
                 return true;
             }
         }
@@ -970,19 +1131,13 @@ function WallList(w, convert = false) {
     }
     
     this.rotate = function(da) {
+      
         this.angle += da;
-        for (w of this.walls) {
-            w.rotate(da);
+        for (t of this.walls) {
+            t.rotate(da);
             let dax = Math.cos(da);
             let day = Math.sin(da);
-            let dx = (w.centerX - this.centerX) * (dax - 1) - (w.centerY - this.centerY) * day;
-            let dy = (w.centerX - this.centerX) * day + (w.centerY - this.centerY) * (dax - 1);
-            w.centerX += dx;
-            w.centerY += dy;
-            w.x1 += dx;
-            w.y1 += dy;
-            w.x2 += dx;
-            w.y2 += dy;
+            t.move((t.centerX - this.centerX) * (dax - 1) - (t.centerY - this.centerY) * day, (t.centerX - this.centerX) * day + (t.centerY - this.centerY) * (dax - 1));
         }
     }
 }
@@ -995,7 +1150,15 @@ function Preset(title, settings, objects, func) {
   //idk why these don't save
   
   this.set = function() {
+    
     dragObj = null;
+    if (newX1 != null) {
+      newX1 = null;
+      newY1 = null;
+      newX2 = null;
+      newY2 = null;
+      newA = null;
+    }
     balls = [];
     walls = [];
     
@@ -1052,8 +1215,12 @@ function Preset(title, settings, objects, func) {
       angInc = settings.angInc;
     }
     
-    screenX = 0;
-    screenY = 0;
+    if (settings.x != undefined) {
+      screenX = settings.x;
+    }
+    if (settings.y != undefined) {
+      screenY = settings.y;
+    }
     
     if (objects != undefined) {
       for (o of objects) {
@@ -1064,11 +1231,14 @@ function Preset(title, settings, objects, func) {
           case "rectWall":
             walls.push(new RectWall(o.x1, o.y1, o.x2, o.y2, o.size, o.color));
             break;
+          case "triWall":
+            walls.push(new TriWall(o.x, o.y, o.color));
+            break;
           case "circleWall":
             walls.push(new CircleWall(o.x, o.y, o.r1, o.r2, o.a1, o.a2, o.color));
             break;
           case "listWall":
-            walls.push(new ListWall(o.w, o.convert));
+            walls.push(new WallList(o.x, o.y, o.size, o.color));
             break;
         }
       }
@@ -1165,7 +1335,8 @@ function MenuPreset(n, clickable, preset) {
   }
   
   this.back = function() {
-    if (pressedKeys.includes("shift")) {
+    if (pressedKeys.includes("control")) {
+      inValue = false;
       menuValues.presets.splice(this.n, 1);
       for (let n = this.n; n < menuValues.presets.length; n++) { 
         menuValues.presets[n].n -= 1;
@@ -1356,22 +1527,22 @@ function MenuFloat(n, title, clickable, get, set) {
       }
       this.eMode = true;
     } else if (this.eMode) {
-      if (!isNaN(+num) || (num == "-")) {
-        if (num == "-") {
-          this.eSign *= -1;
-        } else {
-          this.eValue = this.eValue * 10 + (+num);
-        }
+      if (num == "-") {
+        this.eSign *= -1;
+      } else if (!isNaN(+num)) {
+        this.eValue = this.eValue * 10 + (+num);
       }
     } else if (num == "-") {
         this.sign *= -1;
     } else if (num == "." && this.digit == 0) {
         this.digit = 1;
-    } else if (this.digit == 0) {
-        this.value = this.value * 10 + (+num);
     } else if (!isNaN(+num)) {
-      this.value += num / 10 ** this.digit;
-      this.digit += 1;
+      if (this.digit == 0) {
+        this.value = this.value * 10 + (+num);
+      } else {
+        this.value += num / 10 ** this.digit;
+        this.digit += 1;
+      }
     }
   }
   
@@ -1491,6 +1662,14 @@ function setup() {
               "color": w.color
             });
             break;
+          case "tri":
+            objects.push({
+              "type": "triWall",
+              "x": w.x, 
+              "y": w.y, 
+              "color": w.color
+            });
+            break;
           case "circle":
             objects.push({
               "type": "circleWall",
@@ -1516,6 +1695,8 @@ function setup() {
       menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
         "speed": speed,
         "height": gameHeight,
+        "x": screenX,
+        "y": screenY,
         "G": G,
         "gx": gx,
         "gy": gy,
@@ -1536,6 +1717,8 @@ function setup() {
     new MenuPreset(2, true, new Preset("empty", {
       "speed": 1,
       "height": 10,
+      "x": 0,
+      "y": 0,
       "G": 0,
       "gx": 0,
       "gy": 0,
@@ -1555,6 +1738,8 @@ function setup() {
     new MenuPreset(3, true, new Preset("small", {
       "speed": 1,
       "height": 10,
+      "x": 0,
+      "y": 0,
       "G": 0,
       "gx": 0,
       "gy": -9.8,
@@ -1574,6 +1759,8 @@ function setup() {
     new MenuPreset(4, true, new Preset("large", {
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
+      "x": 0,
+      "y": 0,
       "G": 6.67 * 10 ** -11,
       "gx": 0,
       "gy": 0,
@@ -1593,6 +1780,8 @@ function setup() {
     new MenuPreset(5, true, new Preset("box", {
       "speed": 1,
       "height": 12,
+      "x": 0,
+      "y": 0,
       "G": 0,
       "gx": 0,
       "gy": -9.8,
@@ -1620,6 +1809,8 @@ function setup() {
     new MenuPreset(6, true, new Preset("orbit", {
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
+      "x": 0,
+      "y": 0,
       "G": 6.67 * 10 ** -11,
       "gx": 0,
       "gy": 0,
@@ -1672,7 +1863,7 @@ function setup() {
     new MenuFloat(9, "bRest", true, () => (ballRestitution), function(ballRestitution1) {
       ballRestitution = ballRestitution1;
     }),
-    new MenuBoolean(10, "collide", () => (collide), function() {
+    new MenuBoolean(10, "collide", true, () => (collide), function() {
       collide = !collide;
     }),
     new MenuFloat(11, "drag0", true, () => (dragCoef0), function(dragCoef01) {
@@ -1755,8 +1946,7 @@ function setup() {
       dragObj.updateMOI();
     }),
     new MenuFloat(4, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
-      dragObj.moiCoef = moiCoef;
-      dragObj.updateMOI();
+      dragObj.setMOICoef(moiCoef);
     }),
     new MenuFloat(5, "vx", true, () => (dragObj.vx), function(vx) {
       dragObj.vx = vx;
@@ -1830,43 +2020,55 @@ function show() {
       b.show();
   }
   
-  if (ballX != null) {
-      let size = 2 * alignNum(dist(ballX, ballY, mouseX, mouseY));
-      drawBall(ballX, ballY, alignAngle(angle(ballX, ballY, mouseX, mouseY)), size, newColor);
-  } else if (wallX2 != null) {
+  if (newX2 != null) {
       let size;
       switch (dragType) {
           case "w":
-              size = alignNum(((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2));
-              drawRectWall(wallX1, wallY1, wallX2, wallY2, size, newColor);
+              size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
+              drawRectWall(newX1, newY1, newX2, newY2, size, newColor);
+              break;
+          case "t":
+              drawTriWall([newX1, newX2, alignNum(mouseX)], [newY1, newY2, alignNum(mouseY)], newColor);
               break;
           case "c":
-              let r1 = alignNum(dist(wallX1, wallY1, wallX2, wallY2));
-              let r2 = alignNum(dist(wallX1, wallY1, mouseX, mouseY));
+              let r1 = alignNum(dist(newX1, newY1, newX2, newY2));
+              let r2 = alignNum(dist(newX1, newY1, mouseX, mouseY));
               if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
                   r2 = 0;
               }
-              let a1 = angle(wallX1, wallY1, wallX2, wallY2);
-              let a2 = alignAngle(a1 + wallA);
+              let a1 = angle(newX1, newY1, newX2, newY2);
+              let a2 = alignAngle(a1 + newA);
               if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
                   a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
               }
-              drawCircleWall(wallX1, wallY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
+              drawCircleWall(newX1, newY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
               break;
           case "l":
-              for (w of getWallList(wallX1, wallY1, wallListSize(wallX1, wallY1, mouseX, mouseY), newColor)) {
-                  drawRectWall(...w);
-              }
+              drawWallList(getWallList(newX1, newY1, wallListSize(newX1, newY1, mouseX, mouseY), newColor));
               break;
       }
-  } else if (wallX1 != null) {
+  } else if (newX1 != null) {
       switch (dragType) {
+          case "b":
+              let size = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
+              drawBall(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), size, newColor);
+              break;
           case "w":
               scale();
               ctxMain.lineCap = "but" + "t";
               ctxMain.beginPath();
-              ctxMain.moveTo(wallX1, wallY1);
-              ctxMain.lineTo(...alignPos(mouseX, mouseY));
+              ctxMain.moveTo(newX1, newY1);
+              ctxMain.lineTo(...alignLine(newX1, newY1, mouseX, mouseY));
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.stroke();
+              break;
+          case "t":
+              scale();
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(newX1, newY1);
+              ctxMain.lineTo(...alignLine(newX1, newY1, mouseX, mouseY));
               ctxMain.strokeStyle = newColor;
               ctxMain.lineWidth = 2 / scaleFactor;
               ctxMain.stroke();
@@ -1877,8 +2079,8 @@ function show() {
               ctxMain.lineWidth = 2 / scaleFactor;
               ctxMain.lineCap = "but" + "t";
               ctxMain.beginPath();
-              ctxMain.moveTo(wallX1, wallY1);
-              ctxMain.lineTo(...alignLine(wallX1, wallY1, mouseX, mouseY));
+              ctxMain.moveTo(newX1, newY1);
+              ctxMain.lineTo(...alignDist(newX1, newY1, mouseX, mouseY));
               ctxMain.stroke();
               break;
           case "l":
@@ -1887,9 +2089,9 @@ function show() {
               ctxMain.lineWidth = 2 / scaleFactor;
               ctxMain.lineCap = "but" + "t";
               ctxMain.beginPath();
-              ctxMain.moveTo(wallX1[0], wallY1[0])
-              for (let n = 1; n < wallX1.length; n++) {
-                  ctxMain.lineTo(wallX1[n], wallY1[n]);
+              ctxMain.moveTo(newX1[0], newY1[0])
+              for (let n = 1; n < newX1.length; n++) {
+                  ctxMain.lineTo(newX1[n], newY1[n]);
               }
               ctxMain.stroke();
               break;
@@ -2032,101 +2234,117 @@ function wallListSize(x, y, mx, my) {
 }
 
 function getWallList(x, y, size, color) {
-    let n;
-    let pn = 0;
-    let ppn = null;
-    let wList = [];
-    let distance;
-    let pdistance = dist(x[0], y[0], x[pn], y[pn]);
-    let extra = 0;
-    let pextra = 0;
-    for (let n = 1; n < x.length; n++) {
-        distance = dist(x[pn], y[pn], x[n], y[n]);
-        if (distance >= wallListInc) {
-            if (ppn != null) {
-                extra = size * (pdistance * (y[n] - y[pn]) - distance * (y[pn] - y[ppn])) / (distance * (x[pn] - x[ppn]) - pdistance * (x[pn] - x[n]));
-                extra = (Number.isFinite(extra)/* && extra > 0*/ ? Math.abs(extra) : 0);
-                //extra = (Number.isFinite(extra) && extra > 0 ? extra : 0);
-                wList.push([x[ppn] + pextra * (x[ppn] - x[pn]) / pdistance, y[ppn] + pextra * (y[ppn] - y[pn]) / pdistance, x[pn] + extra * (x[n] - x[pn]) / distance, y[pn] + extra * (y[n] - y[pn]) / distance, size, color]);
-                //wList.push([x[n-2], y[n-2], x[pn], y[pn], size, color]);
-                ////document.getElementById("p").innerHTML += x[ppn] + pextra * (x[ppn] - x[pn]) / pdistance + " | ";
-            }
-            
-            ppn = pn;
-            pn = n;
-            pdistance = distance;
-            pextra = extra;
-        }
+  let wList = [];
+  let pn = 0;
+  let distance;
+  
+  let n1;
+  for (let n = 1; n < x.length; n++) {
+    distance = dist(x[0], y[0], x[n], y[n]);
+    if (distance >= gameHeight * wallListInc) {
+      n1 = n;
+      break;
     }
-    wList.push([x[ppn] + pextra * (x[ppn] - x[x.length - 1]) / pdistance, y[ppn] + pextra * (y[ppn] - y[x.length - 1]) / pdistance, x[x.length - 1], y[x.length - 1], size, color]);
-    return wList;
+  }
+  
+  let normalX = (y[0] - y[n1]) / distance;
+  let normalY = (x[n1] - x[0]) / distance;
+  let pox = x[0] + normalX * size;
+  let poy = y[0] + normalY * size;
+  
+  let ox;
+  let oy;
+  for (let n = n1; n < x.length; n++) {
+    distance = dist(x[pn], y[pn], x[n], y[n]);
+    if (distance >= gameHeight * wallListInc || n == x.length - 1) {
+      normalX = (y[pn] - y[n]) / distance;
+      normalY = (x[n] - x[pn]) / distance;
+      ox = (x[pn] + x[n]) / 2 + normalX * size;
+      oy = (y[pn] + y[n]) / 2 + normalY * size;
+      
+      wList.push([[pox, x[pn], ox], [poy, y[pn], oy], color]);
+      wList.push([[x[pn], ox, x[n]], [y[pn], oy, y[n]], color]);
+      
+      pn = n;
+      pox = ox;
+      poy = oy;
+    }
+  }
+  wList.push([[pox, x[pn], x[pn] + normalX * size], [poy, y[pn], y[pn] + normalY * size], color]);
+  return getWalls(wList);
 }
 
 function parametricWall(x, y, t0, t1, dt, size, color) {
-    let xl = [];
-    let yl = [];
-    for (let t = t0; t <= t1; t += dt) {
-        xl.push(x(t));
-        yl.push(y(t));
-    }
-    return getWallList(xl, yl, size, color);
+  let xl = [];
+  let yl = [];
+  for (let t = t0; t <= t1; t += dt) {
+      xl.push(x(t));
+      yl.push(y(t));
+  }
+  return getWallList(xl, yl, size, color);
 }
 
 function getWalls(l) {
     let wList = [];
     for (w of l) {
-        wList.push(new RectWall(...w));
+        wList.push(new TriWall(...w));
     }
     return wList;
 }
 
 function createBall() {
-    let newSize = 2 * alignNum(dist(ballX, ballY, mouseX, mouseY));
-    balls.push(new Ball(ballX, ballY, alignAngle(angle(ballX, ballY, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, newColor));
+    let newSize = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
+    balls.push(new Ball(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, newColor));
     
-    ballX = null;
-    ballY = null;
+    newX1 = null;
+    newY1 = null;
 }
 
 function createRectWall() {
-    let size = alignNum(((mouseX - wallX1) * (wallY1 - wallY2) + (mouseY - wallY1) * (wallX2 - wallX1)) / dist(wallX1, wallY1, wallX2, wallY2));
-    walls.push(new RectWall(wallX1, wallY1, wallX2, wallY2, size, newColor));
+    let size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
+    walls.push(new RectWall(newX1, newY1, newX2, newY2, size, newColor));
     
-    wallX1 = null;
-    wallY1 = null;
-    wallX2 = null;
-    wallY2 = null;
+    newX1 = null;
+    newY1 = null;
+    newX2 = null;
+    newY2 = null;
+    newA = null;
+}
+
+function createTriWall() {
+    walls.push(new TriWall([newX1, newX2, alignNum(mouseX)], [newY1, newY2, alignNum(mouseY)], newColor));
+    
+    newX1 = null;
+    newY1 = null;
+    newX2 = null;
+    newY2 = null;
 }
 
 function createCircleWall() {
-    let r1 = alignNum(dist(wallX1, wallY1, wallX2, wallY2));
-    let r2 = alignNum(dist(wallX1, wallY1, mouseX, mouseY));
+    let r1 = alignNum(dist(newX1, newY1, newX2, newY2));
+    let r2 = alignNum(dist(newX1, newY1, mouseX, mouseY));
     if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
         r2 = 0;
     }
-    let a1 = angle(wallX1, wallY1, wallX2, wallY2);
-    let a2 = alignAngle(a1 + wallA);
+    let a1 = angle(newX1, newY1, newX2, newY2);
+    let a2 = alignAngle(a1 + newA);
     if (Math.abs(a2 - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
         a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
     }
-    walls.push(new CircleWall(wallX1, wallY1, Math.min(r1, r2), Math.max(r1, r2), Math.min(a1, a2), Math.max(a1, a2), newColor));
-    wallX1 = null;
-    wallY1 = null;
-    wallX2 = null;
-    wallY2 = null;
+    walls.push(new CircleWall(newX1, newY1, Math.min(r1, r2), Math.max(r1, r2), Math.min(a1, a2), Math.max(a1, a2), newColor));
+    newX1 = null;
+    newY1 = null;
+    newX2 = null;
+    newY2 = null;
 }
 
 function createWallList() {
-    /*let size = ((mouseX - wallX1[wallX1.length - 2]) * (wallY1[wallX1.length - 2] - wallY1[wallX1.length - 1]) + (mouseY - wallY1[wallX1.length - 2]) * (wallX1[wallX1.length - 1] - wallX1[wallX1.length - 2])) / dist(wallX1[wallX1.length - 2], wallY1[wallX1.length - 2], wallX1[wallX1.length - 1], wallY1[wallX1.length - 1]);
-    for (let n = 1; n < wallX1.length; n++) {
-        walls.push(new RectWall(wallX1[n - 1], wallY1[n - 1], wallX1[n], wallY1[n], size, newColor));
-    }*/
-    walls.push(new WallList(getWallList(wallX1, wallY1, wallListSize(wallX1, wallY1, mouseX, mouseY), newColor), true));
-    
-    wallX1 = null;
-    wallY1 = null;
-    wallX2 = null;
-    wallY2 = null;
+  walls.push(new WallList(getWallList(newX1, newY1, wallListSize(newX1, newY1, mouseX, mouseY), newColor)));
+  
+  newX1 = null;
+  newY1 = null;
+  newX2 = null;
+  newY2 = null;
 }
 
 function drag(mode) {
@@ -2171,40 +2389,51 @@ function drag(mode) {
 }
 
 function checkClick() {
-    if (ballX != null) {
-        if (dist(ballX, ballY, mouseX, mouseY) >= minDrag / scaleFactor) {
-            createBall();
-        }
-    } else if (wallX2 != null) {
+    if (newX2 != null) {
         switch (dragType) {
             case "w":
-                if (dist(wallX1, wallY1, mouseX, mouseY) >= minDrag / scaleFactor) {
+                if (dist(newX1, newY1, mouseX, mouseY) >= minDrag / scaleFactor) {
                     createRectWall();
+                }
+                break;
+            case "t":
+                if (dist(newX1, newY1, mouseX, mouseY) >= minDrag / scaleFactor) {
+                    createTriWall();
                 }
                 break;
             case "c":
                 createCircleWall();
                 break;
             case "l":
-                if (dist(wallX1[0], wallY1[0], mouseX, mouseY) >= minDrag / scaleFactor) {
+                if (dist(newX1[0], newY1[0], mouseX, mouseY) >= minDrag / scaleFactor) {
                     createWallList();
                 }
         }
-    } else if (wallX1 != null) {
-        if (dragType == "l") {
-          if (wallX1.length >= 2) {
-              wallX2 = true;
-              wallY2 = true;
-          }
-        } else if (dragType == "w") {
-          wallX2 = alignNum(mouseX);
-          wallY2 = alignNum(mouseY);
-          wallA = 0;
-        } else if (dragType == "c") {
-          aligned = alignLine(wallX1, wallY1, mouseX, mouseY);
-          wallX2 = aligned[0];
-          wallY2 = aligned[1];
-          wallA = 0;
+    } else if (newX1 != null) {
+        switch (dragType) {
+          case "b":
+            if (dist(newX1, newY1, mouseX, mouseY) >= minDrag / scaleFactor) {
+                createBall();
+            }
+            break;
+          case "w":
+          case "t":
+            newX2 = alignNum(mouseX);
+            newY2 = alignNum(mouseY);
+            newA = 0;
+            break;
+          case "c":
+            aligned = alignDist(newX1, newY1, mouseX, mouseY);
+            newX2 = aligned[0];
+            newY2 = aligned[1];
+            newA = 0;
+            break;
+          case "l":
+            if (newX1.length >= 2) {
+                newX2 = true;
+                newY2 = true;
+            }
+            break;
         }
     } else if (dragObj != null) {
         drag();
@@ -2231,19 +2460,19 @@ document.onmousemove = function(event) {
     pmouseY = mouseY;
     mouseX = getMouseX(clientX);
     mouseY = getMouseY(clientY);
-    da = angle(wallX1, wallY1, mouseX, mouseY) - angle(wallX1, wallY1, pmouseX, pmouseY);
+    da = angle(newX1, newY1, mouseX, mouseY) - angle(newX1, newY1, pmouseX, pmouseY);
     if (Math.abs(da) > Math.PI) {
         da -= Math.sign(da) * Math.PI * 2;
     }
-    if (wallX2 != null) {
-        wallA += da;
-        if (Math.abs(wallA) >= Math.PI * 2) {
-            wallA -= Math.sign(wallA) * Math.PI * 4;
+    if (newX2 != null) {
+        newA += da;
+        if (Math.abs(newA) >= Math.PI * 2) {
+            newA -= Math.sign(newA) * Math.PI * 4;
         }
-    } else if (wallX1 != null && dragType == "l") {
-        if (wallX1.length == 0 || dist(wallX1[wallX1.length - 1], wallY1[wallY1.length - 1], mouseX, mouseY) > 0) {
-            wallX1.push(mouseX);
-            wallY1.push(mouseY);
+    } else if (newX1 != null && dragType == "l") {
+        if (newX1.length == 0 || dist(newX1[newX1.length - 1], newY1[newY1.length - 1], mouseX, mouseY) > 0) {
+            newX1.push(mouseX);
+            newY1.push(mouseY);
         }
     }
     
@@ -2308,26 +2537,24 @@ document.onkeydown = function(event) {
         case "b":
             if (dragType != "b") {
                 dragType = "b";
-                if (wallX1 != null) {
-                    ballX = wallX1;
-                    ballY = wallY1;
-                    wallX1 = null;
-                    wallY1 = null;
-                    wallX2 = null;
-                    wallY2 = null;
+                if (isNaN(newX1)) {
+                    newX1 = null;
+                    newY1 = null;
+                    newX2 = null;
+                    newY2 = null;
+                    newA = null;
                 }
             }
             break;
         case "c":
             if (dragType != "c") {
                 dragType = "c";
-                if (ballX != null) {
-                    wallX1 = ballX;
-                    wallY1 = ballY;
-                    wallX2 = null;
-                    wallY2 = null;
-                    ballX = null;
-                    ballY = null;
+                if (isNaN(newX1)) {
+                    newX1 = null;
+                    newY1 = null;
+                    newX2 = null;
+                    newY2 = null;
+                    newA = null;
                 }
             }
             break;
@@ -2345,25 +2572,22 @@ document.onkeydown = function(event) {
                     walls.splice(walls.indexOf(dragObj), 1);
                 }
                 dragObj = null;
-            } else if (ballX != null) {
-                ballX = null;
-                ballY = null;
-            } else if (wallX1 != null) {
-                wallX1 = null;
-                wallY1 = null;
-                wallX2 = null;
-                wallY2 = null;
+            } else if (newX1 != null) {
+                newX1 = null;
+                newY1 = null;
+                newX2 = null;
+                newY2 = null;
+                newA = null;
             }
             break;
         case "l":
             if (dragType != "l") {
                 dragType = "l";
-                wallX1 = null;
-                wallY1 = null;
-                wallX2 = null;
-                wallY2 = null;
-                ballX = null;
-                ballY = null;
+                newX1 = null;
+                newY1 = null;
+                newX2 = null;
+                newY2 = null;
+                newA = null;
             }
             break;
         case "m":
@@ -2377,19 +2601,30 @@ document.onkeydown = function(event) {
         case "p":
             paused = !paused;
             break;
+        case "t":
+            if (dragType != "t") {
+                dragType = "t";
+                if (isNaN(newX1)) {
+                    newX1 = null;
+                    newY1 = null;
+                    newX2 = null;
+                    newY2 = null;
+                    newA = null;
+                }
+            }
+            break;
         case "u":
             update(speed / fps / upf);
             break;
         case "w":
             if (dragType != "w") {
                 dragType = "w";
-                if (ballX != null) {
-                    wallX1 = ballX;
-                    wallY1 = ballY;
-                    wallX2 = null;
-                    wallY2 = null;
-                    ballX = null;
-                    ballY = null;
+                if (isNaN(newX1)) {
+                    newX1 = null;
+                    newY1 = null;
+                    newX2 = null;
+                    newY2 = null;
+                    newA = null;
                 }
             }
             break;
@@ -2434,7 +2669,7 @@ main.onmousedown = function(event) {
     mouseDownY = mouseY;
     
     if (!checkClick()) {
-      if (!pressedKeys.includes("shift")) {
+      if (!pressedKeys.includes("control")) {
         for (b of balls) {
             if (b.containsPoint(mouseX, mouseY)) {
                 dragObj = b;
@@ -2447,19 +2682,13 @@ main.onmousedown = function(event) {
                     dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
                     dragva = [];
                 }
+                break;
             }
         }
         
         if (dragObj == null) {
             for (w of walls) {
                 if (w.containsPoint(mouseX, mouseY)) {
-                    if (inValue) {
-                      for (v of menuValues[menuType]) {
-                        if (v.clicked) {
-                          v.esc();
-                        }
-                      }
-                    }
                     dragObj = w;
                     if (dragMode == true) {
                         dragOffsetX = -mouseX;
@@ -2467,6 +2696,7 @@ main.onmousedown = function(event) {
                     } else if (dragMode == false) {
                         dragOffsetA = dragObj.angle - angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
                     }
+                    break;
                 }
             }
         }
@@ -2475,17 +2705,18 @@ main.onmousedown = function(event) {
       if (dragObj == null) {
           switch (dragType) {
               case "b":
-                  ballX = alignNum(mouseX);
-                  ballY = alignNum(mouseY);
+                  newX1 = alignNum(mouseX);
+                  newY1 = alignNum(mouseY);
                   break;
-              case "c":
               case "w":
-                  wallX1 = alignNum(mouseX);
-                  wallY1 = alignNum(mouseY);
+              case "t":
+              case "c":
+                  newX1 = alignNum(mouseX);
+                  newY1 = alignNum(mouseY);
                   break;
               case "l":
-                  wallX1 = [mouseX];
-                  wallY1 = [mouseY];
+                  newX1 = [mouseX];
+                  newY1 = [mouseY];
                   break;
           }
       }
