@@ -6,7 +6,7 @@ Positive directions are right and down.
 Press "r" to reset.
   Press "r" once to remove all balls.
   Press "r" twice (or when there are no balls) to remove all walls.
-Click arrows, "+", "-", "<", and ">" to control the simulation.
+Click arrows, "+", "-", "<", and ">" to change the simulation viewport or speed.
   Click arrows to move the veiwpoint.
   Click "-" to zoom out.
   Click "+" to zoom in.
@@ -20,10 +20,11 @@ Click menu items to change their value.
 Click to create new objects depending on chosen mode.
   Press "b" for ball mode.
   Press "w" for rectangular wall mode.
+  Press "t" for triangular wall mode.
   Press "c" for circular wall mode.
   Press "l" for custom (list) wall mode.
   Press "d" to cancel creation.
-  Hold "shift" to avoid selecting an existing object or align angles to 15° increments.
+  Hold "control" to avoid selecting an existing object or align angles to 15° increments.
   Creation color will constantly, randomly change during creation.
 Click objects to select and drag them.
   Press "m" to move selected objects.
@@ -51,8 +52,8 @@ Click "presets" to select simulation presets.
   "box" has box walls.
   "orbit" has to balls with the masses and distances of the Earth orbitting the Sun.
   Click a preset to apply it.
-  Shift-click a preset to edit its title.
-  Control-backspace a preset while editting it to delete it.
+  While holding "shift", click a preset to edit its title.
+  While holding "control", press "backspace" to delete a preset while editting it.
 Click "variables" to edit simulation settings.
   "speed" is the speed of the simulation.
   "height" is the in-simulation height of the screen (the width will automatically adjust).
