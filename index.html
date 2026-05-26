@@ -42,24 +42,22 @@ const widthFactor = 4 / 5;
 
 const main = document.getElementById("main");
 const ctxMain = main.getContext("2d");
-main.width = window.innerWidth * widthFactor;
-main.height = window.innerHeight;
 
 const menu = document.getElementById("menu");
 const ctxMenu = menu.getContext("2d");
-menu.width = window.innerWidth * (1 - widthFactor);
-menu.height = window.innerHeight;
-menu.left = window.innerHeight * widthFactor;
+
+var pWidth;
+var pHeight;
+var gameWidth;;
+var scaleFactor;
 
 const eps = 1 / 1000000;
 
 var gameHeight = 10;
-var gameWidth = gameHeight * main.width / main.height;
-var scaleFactor = main.height / gameHeight;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
-var upf = 10;//////////100
+var upf = 100;
 var speed = 1;
 const dragVTime = 1 / 10;
 const minDrag = 2;
@@ -125,6 +123,23 @@ var objValues = [];
 
 //var utime = 0;
 //var unum = 0;
+
+function updateView() {
+  if (window.innerWidth != pWidth || window.innerHeight != pHeight) {
+    main.width = window.innerWidth * widthFactor;
+    main.height = window.innerHeight;
+    
+    menu.width = window.innerWidth * (1 - widthFactor);
+    menu.height = window.innerHeight;
+    menu.left = window.innerHeight * widthFactor;
+    
+    gameWidth = gameHeight * main.width / main.height;
+    scaleFactor = main.height / gameHeight;
+    
+    pWidth = window.innerWidth;
+    pHeight = window.innerHeight;
+  }
+}
 
 function scale() {
   ctxMain.resetTransform();
@@ -1256,8 +1271,6 @@ function MenuButton(n, title, click) {
   this.click = click;
   
   this.clickable = false;
-  this.rawsx = menu.width * 4 / 5;
-  this.rawsy = menu.width / 4;
   
   this.hoverFactor = 1.08;
   
@@ -1266,8 +1279,8 @@ function MenuButton(n, title, click) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1290,9 +1303,6 @@ function MenuPreset(n, clickable, preset) {
   this.clickable = clickable;
   this.preset = preset;
   
-  this.rawsx = menu.width * 4 / 5;
-  this.rawsy = menu.width / 4;
-  
   this.hoverFactor = 1.08;
   
   this.hovered = false;
@@ -1301,8 +1311,8 @@ function MenuPreset(n, clickable, preset) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1363,9 +1373,6 @@ function MenuBoolean(n, title, clickable, get, click) {
   this.rawGet = get;
   this.rawClick = click;
   
-  this.rawsx = menu.width * 4 / 5;
-  this.rawsy = menu.width / 4;
-  
   this.hoverFactor = 1.08;
   
   this.hovered = false;
@@ -1373,8 +1380,8 @@ function MenuBoolean(n, title, clickable, get, click) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1407,9 +1414,6 @@ function MenuNumber(n, title, clickable, get, set) {
   this.rawGet = get;
   this.rawSet = set;
   
-  this.rawsx = menu.width * 4 / 5;
-  this.rawsy = menu.width / 4;
-  
   this.hoverFactor = 1.08;
   
   this.hovered = false;
@@ -1418,8 +1422,8 @@ function MenuNumber(n, title, clickable, get, set) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1472,9 +1476,6 @@ function MenuFloat(n, title, clickable, get, set) {
   this.rawGet = get;
   this.rawSet = set;
   
-  this.rawsx = menu.width * 4 / 5;
-  this.rawsy = menu.width / 4;
-  
   this.hoverFactor = 1.08;
   
   this.hovered = false;
@@ -1488,8 +1489,8 @@ function MenuFloat(n, title, clickable, get, set) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => this.rawsx * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => this.rawsy * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -2122,6 +2123,8 @@ function showMenu() {
 
 function frame(time) {
   
+  updateView();
+  
   rawMaindt = (time - mainPTime) / 1000;
   
   if (rawMaindt * fps > 0.9) {
@@ -2220,6 +2223,7 @@ function frame(time) {
   
 }
 
+updateView();
 setup();
 start();
 show();
