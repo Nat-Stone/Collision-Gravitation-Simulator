@@ -57,7 +57,7 @@ var gameHeight = 10;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
-var upf = 100;
+var upf = 100
 var speed = 1;
 const dragVTime = 1 / 10;
 const minDrag = 2;
@@ -550,7 +550,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
       b.vy += mag * this.mass * (this.py - b.py);
       b.collided.push(this);
     }
-  } //gravity
+  } //ball-ball gravity
   
   this.collideBall = function(b) {
       let sqDistance = sqdist(this.px, this.py, b.px, b.py);
@@ -575,7 +575,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
           
           sqDistance = sqdist(this.px, this.py, b.px, b.py);
           vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
-          if (/*vDotp >= 0 && */!isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
+          if (vDotp >= 0 && !isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
               let normalVelMag = (1 + ballRestitution) / (this.mass + b.mass) * vDotp / sqDistance;
               let normalVelX = normalVelMag * (b_pxCol - this_pxCol);
               let normalVelY = normalVelMag * (b_pyCol - this_pyCol);
@@ -658,6 +658,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
           dist1 = (pxCol - w.centerX) * w.normalX1 + (pyCol - w.centerY) * w.normalY1;
           dist2 = (pxCol - w.centerX) * w.normalX2 + (pyCol - w.centerY) * w.normalY2;
           if (2 * Math.abs(dist2) < w.size2) {
+            if (v1 * Math.sign(dist1) < 0) {
               let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
               let fVal = (v2 + Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
               if (fMax < Math.abs(fVal)) {
@@ -666,7 +667,9 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
               this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalX2);
               this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) - fVal * w.normalY2);
               this.newva.push(this.va - Math.sign(dist1) * 2 * fVal / this.size / this.moiCoef);
+            }
           } else if (2 * Math.abs(dist1) < w.size1) {
+            if (v2 * Math.sign(dist2) < 0) {
               let fMax = Math.abs((1 + wallRestitution) * v2 * wallFriction);
               let fVal = (v1 - Math.sign(dist2) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
               if (fMax < Math.abs(fVal)) {
@@ -675,15 +678,16 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
               this.newvx.push(this.vx - v2 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalX1);
               this.newvy.push(this.vy - v2 * w.normalY2 * (1 + wallRestitution) - fVal * w.normalY1);
               this.newva.push(this.va + Math.sign(dist2) * 2 * fVal / this.size / this.moiCoef);
+            }
           } else {
-              let edgeDist1 = dist1 - Math.sign(dist1) * w.size1 / 2;
-              let edgeDist2 = dist2 - Math.sign(dist2) * w.size2 / 2;
-              let distance = Math.sqrt(edgeDist1 * edgeDist1 + edgeDist2 * edgeDist2);
-              let normalX = (edgeDist1 * w.normalX1 + edgeDist2 * w.normalX2) / distance;
-              let normalY = (edgeDist1 * w.normalY1 + edgeDist2 * w.normalY2) / distance;
-              v1 = this.vx * normalX + this.vy * normalY;
+            let edgeDist1 = dist1 - Math.sign(dist1) * w.size1 / 2;
+            let edgeDist2 = dist2 - Math.sign(dist2) * w.size2 / 2;
+            let distance = Math.sqrt(edgeDist1 * edgeDist1 + edgeDist2 * edgeDist2);
+            let normalX = (edgeDist1 * w.normalX1 + edgeDist2 * w.normalX2) / distance;
+            let normalY = (edgeDist1 * w.normalY1 + edgeDist2 * w.normalY2) / distance;
+            v1 = this.vx * normalX + this.vy * normalY;
+            if (v1 < 0) {
               v2 = this.vx * normalY - this.vy * normalX;
-              
               let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
               let fVal = (v2 - Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
               if (fMax < Math.abs(fVal)) {
@@ -692,6 +696,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
               this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
               this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
               this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+            }
           }
       }
       
@@ -752,16 +757,18 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
           sideY = -normalX * w.dir;
         }
         
-        let sideV = this.vx * sideX + this.vy * sideY;
         let normalV = this.vx * normalX + this.vy * normalY;
-        let fMax = Math.abs((1 + wallRestitution) * normalV * wallFriction);
-        let fVal = (sideV + w.dir * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
-        if (fMax < Math.abs(fVal)) {
-          fVal = fMax * Math.sign(fVal);
+        if (normalV < 0) {
+          let sideV = this.vx * sideX + this.vy * sideY;
+          let fMax = Math.abs((1 + wallRestitution) * normalV * wallFriction);
+          let fVal = (sideV + w.dir * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+          if (fMax < Math.abs(fVal)) {
+            fVal = fMax * Math.sign(fVal);
+          }
+          this.newvx.push(this.vx - normalV * normalX * (1 + wallRestitution) - fVal * sideX);
+          this.newvy.push(this.vy - normalV * normalY * (1 + wallRestitution) - fVal * sideY);
+          this.newva.push(this.va - 2 * w.dir * fVal / this.size / this.moiCoef);
         }
-        this.newvx.push(this.vx - normalV * normalX * (1 + wallRestitution) - fVal * sideX);
-        this.newvy.push(this.vy - normalV * normalY * (1 + wallRestitution) - fVal * sideY);
-        this.newva.push(this.va - 2 * w.dir * fVal / this.size / this.moiCoef);
       }
       
   }
@@ -769,7 +776,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
   this.collideCircleWall = function(w) {
       let distance = dist(w.x, w.y, this.px, this.py);
       let dist1 = distance - w.r1 + this.size / 2;
-      let dist2 = w.r2 - distance + this.size / 2;//check the sign of dist2 in later code
+      let dist2 = w.r2 - distance + this.size / 2;
       
       if (dist1 >= 0 && dist2 >= 0) {
         let ang = angle(w.x, w.y, this.px, this.py);
@@ -824,7 +831,8 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
             offset1 = (pxCol - w.x) * w.normalX1 + (pyCol - w.y) * w.normalY1;
             offset2 = (pxCol - w.x) * w.normalX2 + (pyCol - w.y) * w.normalY2;
             if (distance < w.r1 - this.size / 2 + eps || distance > w.r2 + this.size / 2 - eps) {
-                v1 = this.vx * normalX + this.vy * normalY;
+              v1 = this.vx * normalX + this.vy * normalY;
+              if (v1 < 0) {
                 v2 = this.vx * normalY - this.vy * normalX;
                 fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
                 fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
@@ -834,9 +842,11 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
                 this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                 this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
                 this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+              }
             } else if (Math.abs(offset1 * 2 - this.size) <= eps || Math.abs(offset2 * 2 - this.size) <= eps) {
                 if (Math.abs(Math.PI - angDist1) >= Math.abs(Math.PI - angDist2)) {
-                    v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
+                  v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
+                  if (v1 < 0) {
                     v2 = this.vx * w.normalY1 - this.vy * w.normalX1;
                     fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
                     fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
@@ -846,8 +856,10 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
                     this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalY1);
                     this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) + fVal * w.normalX1);
                     this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+                  }
                 } else {
-                    v1 = this.vx * w.normalX2 + this.vy * w.normalY2;
+                  v1 = this.vx * w.normalX2 + this.vy * w.normalY2;
+                  if (v1 < 0) {
                     v2 = this.vx * w.normalY2 - this.vy * w.normalX2;
                     fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
                     fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
@@ -857,19 +869,20 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
                     this.newvx.push(this.vx - v1 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalY2);
                     this.newvy.push(this.vy - v1 * w.normalY2 * (1 + wallRestitution) + fVal * w.normalX2);
                     this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
+                  }
                 }
             } else {
-                let r = (2 * distance < w.r1 + w.r2 ? w.r1 : w.r2);
-                let ax = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ax1 : w.ax2);
-                let ay = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ay1 : w.ay2);
-                let distX = pxCol - w.x - r * ax;
-                let distY = pyCol - w.y - r * ay;
-                let distMag = Math.sqrt(distX * distX + distY * distY);
-                let normalX = distX / distMag;
-                let normalY = distY / distMag;
-                v1 = this.vx * normalX + this.vy * normalY;
+              let r = (2 * distance < w.r1 + w.r2 ? w.r1 : w.r2);
+              let ax = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ax1 : w.ax2);
+              let ay = (Math.abs(effSize1 - offset1) <= Math.abs(effSize2 - offset2) ? w.ay1 : w.ay2);
+              let distX = pxCol - w.x - r * ax;
+              let distY = pyCol - w.y - r * ay;
+              let distMag = Math.sqrt(distX * distX + distY * distY);
+              let normalX = distX / distMag;
+              let normalY = distY / distMag;
+              v1 = this.vx * normalX + this.vy * normalY;
+              if (v1 < 0) {
                 v2 = this.vx * normalY - this.vy * normalX;
-                
                 let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
                 let fVal = (v2 + Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
@@ -878,6 +891,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
                 this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
                 this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
                 this.newva.push(this.va - Math.sign(dist1) * 2 * fVal / this.size / this.moiCoef);
+            }
             }
         }
       }
@@ -2023,13 +2037,15 @@ function show() {
   
   if (newX2 != null) {
       let size;
+      let aligned;
       switch (dragType) {
           case "w":
               size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
               drawRectWall(newX1, newY1, newX2, newY2, size, newColor);
               break;
           case "t":
-              drawTriWall([newX1, newX2, alignNum(mouseX)], [newY1, newY2, alignNum(mouseY)], newColor);
+              aligned = alignLine(newX2, newY2, mouseX, mouseY);
+              drawTriWall([newX1, newX2, aligned[0]], [newY1, newY2, aligned[1]], newColor);
               break;
           case "c":
               let r1 = alignNum(dist(newX1, newY1, newX2, newY2));
@@ -2305,23 +2321,24 @@ function createBall() {
 }
 
 function createRectWall() {
-    let size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
-    walls.push(new RectWall(newX1, newY1, newX2, newY2, size, newColor));
-    
-    newX1 = null;
-    newY1 = null;
-    newX2 = null;
-    newY2 = null;
-    newA = null;
+  let size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
+  walls.push(new RectWall(newX1, newY1, newX2, newY2, size, newColor));
+  
+  newX1 = null;
+  newY1 = null;
+  newX2 = null;
+  newY2 = null;
+  newA = null;
 }
 
 function createTriWall() {
-    walls.push(new TriWall([newX1, newX2, alignNum(mouseX)], [newY1, newY2, alignNum(mouseY)], newColor));
-    
-    newX1 = null;
-    newY1 = null;
-    newX2 = null;
-    newY2 = null;
+  let aligned = alignLine(newX2, newY2, mouseX, mouseY);
+  walls.push(new TriWall([newX1, newX2, aligned[0]], [newY1, newY2, aligned[1]], newColor));
+  
+  newX1 = null;
+  newY1 = null;
+  newX2 = null;
+  newY2 = null;
 }
 
 function createCircleWall() {
@@ -2414,6 +2431,7 @@ function checkClick() {
                 }
         }
     } else if (newX1 != null) {
+        let aligned;
         switch (dragType) {
           case "b":
             if (dist(newX1, newY1, mouseX, mouseY) >= minDrag / scaleFactor) {
@@ -2422,8 +2440,9 @@ function checkClick() {
             break;
           case "w":
           case "t":
-            newX2 = alignNum(mouseX);
-            newY2 = alignNum(mouseY);
+            aligned = alignLine(newX1, newY1, mouseX, mouseY);
+            newX2 = aligned[0];
+            newY2 = aligned[1];
             newA = 0;
             break;
           case "c":
