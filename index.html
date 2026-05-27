@@ -65,6 +65,8 @@ const wallListInc = 0.01;
 var mainPTime = 0;
 var rawMaindt = 0;
 var maindt = 0;
+var distOffsetX = 0;
+var distOffsetY = 0;
 
 var paused = false;
 var clientX = null;
@@ -144,7 +146,7 @@ function updateView() {
 function scale() {
   ctxMain.resetTransform();
   ctxMain.scale(scaleFactor, -scaleFactor);
-  ctxMain.translate(-screenX, -gameHeight - screenY);
+  ctxMain.translate(- screenX, - gameHeight - screenY);
 }
 
 function getMouseX(x) {
@@ -156,16 +158,16 @@ function getMouseY(y) {
 }
 
 function shift(dx, dy) {
-  let dx1 = Math.round((screenX + dx) / distInc) * distInc;
-  let dy1 = Math.round((screenY + dy) / distInc) * distInc;
+  let dx1 = Math.round((screenX + distOffsetX + dx) / distInc) * distInc;
+  let dy1 = Math.round((screenY + distOffsetY + dy) / distInc) * distInc;
   for (let b of balls) {
-    b.move(-dx1, -dy1);
+    b.move(-dx, -dy);
   }
   for (let w of walls) {
-    w.move(-dx1, -dy1);
+    w.move(-dx, -dy);
   }
-  screenX += dx - dx1;
-  screenY += dy - dy1;
+  distOffsetX += dx - dx1;
+  distOffsetY += dy - dy1;
 }
 
 function zoom(factor, x, y) {
@@ -219,28 +221,36 @@ function angMod(a) {
     }
 }
 
-function alignNum(n) {
-  return (pressedKeys.includes("shift") ? Math.round(n / distInc) * distInc : n);
+function alignNum(n, align = true) {
+  return (align && pressedKeys.includes("shift") ? Math.round(n / distInc) * distInc : n);
 }
 
-function alignPos(x, y) {
-  return [alignNum(x), alignNum(y)];
+function alignX(x, align = true) {
+  return alignNum(screenX + distOffsetX + x, align) - screenX - distOffsetX;
 }
 
-function alignAngle(a) {
-  return (pressedKeys.includes("control") ? Math.round(a * 180 / angInc / Math.PI) * Math.PI * angInc / 180 : a);
+function alignY(y, align = true) {
+  return alignNum(screenY + distOffsetY + y, align) - screenY - distOffsetY;
 }
 
-function alignDist(x1, y1, x2, y2) {
-  let r = alignNum(dist(x1, y1, x2, y2));
-  let a = alignAngle(angle(x1, y1, x2, y2));
+function alignPos(x, y, align = true) {
+  return [alignX(x, align), alignY(y, align)];
+}
+
+function alignAngle(a, align = true) {
+  return (align && pressedKeys.includes("control") ? Math.round(a * 180 / angInc / Math.PI) * Math.PI * angInc / 180 : a);
+}
+
+function alignDist(x1, y1, x2, y2, align = true) {
+  let r = alignNum(dist(x1, y1, x2, y2), align);
+  let a = alignAngle(angle(x1, y1, x2, y2), align && !pressedKeys.includes("shift"));
   return [x1 + r * Math.cos(a), y1 + r * Math.sin(a)];
 }
 
-function alignLine(x1, y1, x2, y2) {
+function alignLine(x1, y1, x2, y2, align = true) {
   let r = dist(x1, y1, x2, y2);
-  let a = alignAngle(angle(x1, y1, x2, y2));
-  return alignPos(x1 + r * Math.cos(a), y1 + r * Math.sin(a));
+  let a = alignAngle(angle(x1, y1, x2, y2), align);
+  return alignPos(x1 + r * Math.cos(a), y1 + r * Math.sin(a), align);
 }
 
 function average(arr) {
@@ -1246,11 +1256,17 @@ function Preset(title, settings, objects, func) {
       angInc = settings.angInc;
     }
     
-    if (settings.x != undefined) {
-      screenX = settings.x;
+    if (settings.screenX != undefined) {
+      screenX = settings.screenX;
     }
-    if (settings.y != undefined) {
-      screenY = settings.y;
+    if (settings.screenY != undefined) {
+      screenY = settings.screenY;
+    }
+    if (settings.distOffsetX != undefined) {
+      distOffsetX = settings.distOffsetX;
+    }
+    if (settings.distOffsetY != undefined) {
+      distOffsetY = settings.distOffsetY;
     }
     
     if (objects != undefined) {
@@ -1712,8 +1728,10 @@ function setup() {
       menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
         "speed": speed,
         "height": gameHeight,
-        "x": screenX,
-        "y": screenY,
+        "screenX": screenX,
+        "screenY": screenY,
+        "distOffsetX": distOffsetX,
+        "distOffsetY": distOffsetY,
         "G": G,
         "gx": gx,
         "gy": gy,
@@ -2188,8 +2206,8 @@ function frame(time) {
     if (dragObj != null) {
         if (dragObj.wallType == undefined) {
             if (dragMode == true) {
-                dragObj.px = alignNum(mouseX + dragOffsetX);
-                dragObj.py = alignNum(mouseY + dragOffsetY);
+                dragObj.px = alignX(mouseX + dragOffsetX);
+                dragObj.py = alignY(mouseY + dragOffsetY);
                 dragvx.push(mouseX - pfmouseX);
                 if (dragvx.length > dragVTime * fps) {
                     dragvx.shift();
@@ -2211,7 +2229,7 @@ function frame(time) {
             }
         } else {;
             if (dragMode == true) {
-                dragObj.move(alignNum(mouseX + dragOffsetX) - dragObj.centerX, alignNum(mouseY + dragOffsetY) - dragObj.centerY);
+                dragObj.move(alignX(mouseX + dragOffsetX) - dragObj.centerX, alignY(mouseY + dragOffsetY) - dragObj.centerY);
             } else if (dragMode == false) {
                 dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
             }
@@ -2403,7 +2421,7 @@ function drag(mode) {
         }
       } else {
         if (dragMode == true) {
-          dragObj.move(alignNum(mouseX + dragOffsetX) - dragObj.centerX, alignNum(mouseY + dragOffsetY) - dragObj.centerY);
+          dragObj.move(alignX(mouseX + dragOffsetX) - dragObj.centerX, alignY(mouseY + dragOffsetY) - dragObj.centerY);
         } else if (dragMode == false) {
           dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA - dragObj.angle);
         }
@@ -2415,12 +2433,12 @@ function checkClick() {
     if (newX2 != null) {
         switch (dragType) {
             case "w":
-                if (dist(newX1, newY1, mouseX, mouseY) >= minDrag / scaleFactor) {
+                if (dist(newX1, newY1, ...alignLine(newX1, newY1, mouseX, mouseY)) >= minDrag / scaleFactor) {
                     createRectWall();
                 }
                 break;
             case "t":
-                if (dist(newX1, newY1, mouseX, mouseY) >= minDrag / scaleFactor) {
+                if (dist(newX1, newY1, ...alignLine(newX1, newY1, mouseX, mouseY)) >= minDrag / scaleFactor) {
                     createTriWall();
                 }
                 break;
@@ -2690,6 +2708,7 @@ main.onmousedown = function(event) {
   
     mouseX = getMouseX(event.clientX);
     mouseY = getMouseY(event.clientY);
+    
     mouseDownX = mouseX;
     mouseDownY = mouseY;
     
@@ -2728,14 +2747,14 @@ main.onmousedown = function(event) {
       if (dragObj == null) {
           switch (dragType) {
               case "b":
-                  newX1 = alignNum(mouseX);
-                  newY1 = alignNum(mouseY);
+                  newX1 = alignX(mouseX);
+                  newY1 = alignY(mouseY);
                   break;
               case "w":
               case "t":
               case "c":
-                  newX1 = alignNum(mouseX);
-                  newY1 = alignNum(mouseY);
+                  newX1 = alignX(mouseX);
+                  newY1 = alignY(mouseY);
                   break;
               case "l":
                   newX1 = [mouseX];
