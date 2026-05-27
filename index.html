@@ -707,14 +707,16 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
       let sideDist = [];
       let normalDist = [];
       let sides = false;
+      let inWall = true;
       for (let n = 0; n < w.num; n++) {
         sideDist.push(Math.abs((this.px - w.midX[n]) * w.sideX[n] + (this.py - w.midY[n]) * w.sideY[n]));
         normalDist.push((this.px - w.x[n]) * w.normalX[n] + (this.py - w.y[n]) * w.normalY[n]);
         sides = (Math.abs(2 * normalDist[n]) <= this.size && 2 * sideDist[n] <= w.size[n] ? true : sides)
+        inWall = (normalDist[n] > 0 ? false : inWall)
       }
       
       let vertex;
-      if (!sides) {
+      if (!(sides || inWall)) {
         let vertexSqdist;
         let bestSqdist = Number.POSITIVE_INFINITY;
         for (let n = 0; n < w.num; n++) {
@@ -726,7 +728,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         }
       }
       
-      if (sides || vertex != undefined) {
+      if (sides || inWall || vertex != undefined) {
         let side = 0;
         for (let n = 1; n < w.num; n++) {
           if (normalDist[n] > normalDist[side]) {
