@@ -1285,7 +1285,7 @@ function Preset(title, settings, objects, func) {
             walls.push(new CircleWall(o.x, o.y, o.r1, o.r2, o.a1, o.a2, o.color));
             break;
           case "listWall":
-            walls.push(new WallList(o.x, o.y, o.size, o.color));
+            walls.push(new WallList(o.wList));
             break;
         }
       }
@@ -1718,8 +1718,7 @@ function setup() {
           case "list":
             objects.push({
               "type": "listWall",
-              "w": w.walls,
-              "convert": false
+              "wList": w.walls
             });
             break;
         }
