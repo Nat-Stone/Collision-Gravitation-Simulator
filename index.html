@@ -38,7 +38,7 @@ notes:
 this version has all instances of "*****" replaced with "but" + "t"
 */
 
-const widthFactor = 4 / 5;
+const widthFactor = 0.8;
 
 const main = document.getElementById("main");
 const ctxMain = main.getContext("2d");
@@ -57,7 +57,7 @@ var gameHeight = 10;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
-var upf = 100
+var upf = 20
 var speed = 1;
 const dragVTime = 1 / 10;
 const minDrag = 2;
@@ -74,9 +74,9 @@ var clientY = null;
 var mouseX = null;
 var mouseY = null;
 var pmouseX = null;
+var pmouseY = null;
 var pfmouseX = null;
 var pfmouseY = null;
-var pmouseY = null;
 var mouseDownX = null;
 var mouseDownY = null;
 var newX1 = null;
@@ -102,26 +102,27 @@ var balls = [];
 var G = 0;
 var gx = 0;
 var gy = 0;
-var wallFriction = 0.2;
-var wallRestitution = 0.99;
-var ballFriction = 0.2;
-var ballRestitution = 0.99;
+var bRestCoef = 0.99;
+var bFrictCoef = 0.2;
 var collide = true;
+var density = 1;
+var moiCoef = 1/2;
+var wRestCoef = 0.99;
+var wFrictCoef = 0.2;
 var dragCoef0 = 0;
 var dragCoef1 = 0;
 var dragCoef2 = 0;
-var density = 1;
-var moiCoef = 1/2;
 var distInc = 1/2;
 var angInc = 15;
 var push = true;
 var bounded = false;
 var inValue = false;
-var ballHovered = false;
+var menuObjHovered = false;
 
 var menuType = "main";
 var menuValues = {};
-var objValues = [];
+var ballValues = [];
+var wallValues = [];
 
 //var utime = 0;
 //var unum = 0;
@@ -160,14 +161,37 @@ function getMouseY(y) {
 function shift(dx, dy) {
   let dx1 = Math.round((screenX + distOffsetX + dx) / distInc) * distInc;
   let dy1 = Math.round((screenY + distOffsetY + dy) / distInc) * distInc;
+  distOffsetX += dx - dx1;
+  distOffsetY += dy - dy1;
+  mouseX -= dx;
+  mouseY -= dy;
+  pmouseX -= dx;
+  pmouseY -= dy;
+  pfmouseX -= dx;
+  pfmouseY -= dy;
+  mouseDownX -= dx;
+  mouseDownY -= dy;
   for (let b of balls) {
     b.move(-dx, -dy);
   }
   for (let w of walls) {
     w.move(-dx, -dy);
   }
-  distOffsetX += dx - dx1;
-  distOffsetY += dy - dy1;
+  if (newX1 != null) {
+    if (dragType == "l") {
+      for (let n = 0; n < newX1.length; n++) {
+        newX1[n] -= dx;
+        newY1[n] -= dy;
+      }
+    } else {
+      newX1 -= dx;
+      newY1 -= dy;
+    }
+  }
+  if (newX2 != null) {
+    newX2 -= dx;
+    newY2 -= dy;
+  }
 }
 
 function zoom(factor, x, y) {
@@ -184,17 +208,15 @@ function zoom(factor, x, y) {
 }
 
 function setMenuHeight() {
-  let num;
-  if (dragObj == null) {
-    num = menuValues[menuType].length;
-  } else {
-    num = objValues.length + 2;
-  }
-  
+  let num = getMenuValues().length + (dragObj == null ? 0 : 2);
   menuHeight = Math.max(window.innerHeight, menu.width * (14 * num + 4) / 40);
   if (menu.innerHeight != menuHeight) {
     menu.height = menuHeight;
   }
+}
+
+function getMenuValues() {
+  return (dragObj == null ? menuValues[menuType] : (dragObj.wallType == undefined ? ballValues : wallValues));
 }
 
 function dist(x1, y1, x2, y2) {
@@ -343,12 +365,18 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   ctx.lineWidth = Math.abs(r2 - r1);
   ctx.lineCap = "but" + "t";
   
-  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r1, a1, a2);
+  ctx.arc(x, y, r2, a2, a1, true);
+  ctx.fill();
+  
+  /*ctx.strokeStyle = color;
   ctx.lineWidth = Math.abs(r2 - r1);
   ctx.lineCap = "but" + "t";
   ctx.beginPath();
   ctx.arc(x, y, (r1 + r2) / 2, a1, a2);
-  ctx.stroke();
+  ctx.stroke();*/
 }
 
 function drawWallList(wList, ctx = ctxMain) {
@@ -380,7 +408,7 @@ function drawWallList(wList, ctx = ctxMain) {
   
 }
 
-function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
+function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, color) {
   this.px = px;
   this.py = py;
   this.pa = pa;
@@ -390,6 +418,9 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
   this.mass = mass;
   this.size = size;
   this.moiCoef = moiCoef;
+  this.drag0 = drag0;
+  this.drag1 = drag1;
+  this.drag2 = drag2;
   this.color = color;
   
   this.collided = [];
@@ -459,10 +490,10 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         if (ave != null) {
             this.py = ave;
         }
-      }
-      ave = average(this.newpa);
-      if (ave != null) {
-          this.pa = ave;
+        ave = average(this.newpa);
+        if (ave != null) {
+            this.pa = ave;
+        }
       }
       ave = average(this.newvx);
       if (ave != null) {
@@ -483,12 +514,12 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         if (this.px < this.size / 2) {
             this.px = this.size / 2;
             if (this.vx < 0) {
-                fMax = - (1 + wallRestitution) * this.vx * wallFriction;
+                fMax = - (1 + wRestCoef) * this.vx * wFrictCoef;
                 fVal = (this.vy - this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
-                this.vx *= -wallRestitution;
+                this.vx *= -wRestCoef;
                 this.vy -= fVal;
                 this.va += 2 * fVal / this.size / this.moiCoef;
             }
@@ -496,12 +527,12 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         if (this.px > gameWidth - this.size / 2) {
             this.px = gameWidth - this.size / 2;
             if (this.vx > 0) {
-                fMax = (1 + wallRestitution) * this.vx * wallFriction;
+                fMax = (1 + wRestCoef) * this.vx * wFrictCoef;
                 fVal = (this.vy + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
-                this.vx *= -wallRestitution;
+                this.vx *= -wRestCoef;
                 this.vy -= fVal;
                 this.va -= 2 * fVal / this.size / this.moiCoef;
             }
@@ -509,12 +540,12 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         if (this.py < this.size / 2) {
             this.py = this.size / 2;
             if (this.vy < 0) {
-                fMax = - (1 + wallRestitution) * this.vy * wallFriction;
+                fMax = - (1 + wRestCoef) * this.vy * wFrictCoef;
                 fVal = (this.vx + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
-                this.vy *= -wallRestitution;
+                this.vy *= -wRestCoef;
                 this.vx -= fVal;
                 this.va -= 2 * fVal / this.size / this.moiCoef;
             }
@@ -522,12 +553,12 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         if (this.py > gameHeight - this.size / 2) {
             this.py = gameHeight - this.size / 2;
             if (this.vy > 0) {
-                fMax = (1 + wallRestitution) * this.vy * wallFriction;
+                fMax = (1 + wRestCoef) * this.vy * wFrictCoef;
                 fVal = (this.vx - this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
-                this.vy *= -wallRestitution;
+                this.vy *= -wRestCoef;
                 this.vx -= fVal;
                 this.va += 2 * fVal / this.size / this.moiCoef;
             }
@@ -537,9 +568,9 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
     }
   
   this.drag = function(dt) {
-    if ((this.vx != 0 || this.vy != 0) && (dragCoef0 != 0 || dragCoef1 != 0 || dragCoef2 != 0)) {
+    if ((this.vx != 0 || this.vy != 0) && (this.drag0 != 0 || this.drag1 != 0 || this.drag2 != 0)) {
       let vel = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      let mag = (dragCoef0 / vel + dragCoef1 + dragCoef2 * vel) * dt / this.mass;
+      let mag = (this.drag0 / vel + this.drag1 + this.drag2 * vel) * dt / this.mass;
       if (mag < 1) {
         this.vx -= mag * this.vx;
         this.vy -= mag * this.vy;
@@ -586,7 +617,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
           sqDistance = sqdist(this.px, this.py, b.px, b.py);
           vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
           if (vDotp >= 0 && !isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
-              let normalVelMag = (1 + ballRestitution) / (this.mass + b.mass) * vDotp / sqDistance;
+              let normalVelMag = (1 + bRestCoef) / (this.mass + b.mass) * vDotp / sqDistance;
               let normalVelX = normalVelMag * (b_pxCol - this_pxCol);
               let normalVelY = normalVelMag * (b_pyCol - this_pyCol);
               
@@ -596,7 +627,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
               let sideVelAng = sideVel / distance;
               let sideVelX = sideVelAng * (this_pyCol - b_pyCol);
               let sideVelY = sideVelAng * (b_pxCol - this_pxCol);
-              let frictionVelMag = (sideVel > 0 ? 1 : -1) * Math.min(Math.abs(sideVel) / (1 + 1 / this.moiCoef) / (this.mass + b.mass), Math.abs(ballFriction * normalVelMag));
+              let frictionVelMag = (sideVel > 0 ? 1 : -1) * Math.min(Math.abs(sideVel) / (1 + 1 / this.moiCoef) / (this.mass + b.mass), Math.abs(bFrictCoef * normalVelMag));
               let frictionVelAng = frictionVelMag / sideVel;
               let frictionVelX = frictionVelAng * sideVelX;
               let frictionVelY = frictionVelAng * sideVelY;
@@ -669,24 +700,24 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
           dist2 = (pxCol - w.centerX) * w.normalX2 + (pyCol - w.centerY) * w.normalY2;
           if (2 * Math.abs(dist2) < w.size2) {
             if (v1 * Math.sign(dist1) < 0) {
-              let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+              let fMax = Math.abs((1 + w.wRest) * v1 * w.wFrict);
               let fVal = (v2 + Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
               if (fMax < Math.abs(fVal)) {
                   fVal = fMax * Math.sign(fVal);
               }
-              this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalX2);
-              this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) - fVal * w.normalY2);
+              this.newvx.push(this.vx - v1 * w.normalX1 * (1 + w.wRest) - fVal * w.normalX2);
+              this.newvy.push(this.vy - v1 * w.normalY1 * (1 + w.wRest) - fVal * w.normalY2);
               this.newva.push(this.va - Math.sign(dist1) * 2 * fVal / this.size / this.moiCoef);
             }
           } else if (2 * Math.abs(dist1) < w.size1) {
             if (v2 * Math.sign(dist2) < 0) {
-              let fMax = Math.abs((1 + wallRestitution) * v2 * wallFriction);
+              let fMax = Math.abs((1 + w.wRest) * v2 * w.wFrict);
               let fVal = (v1 - Math.sign(dist2) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
               if (fMax < Math.abs(fVal)) {
                   fVal = fMax * Math.sign(fVal);
               }
-              this.newvx.push(this.vx - v2 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalX1);
-              this.newvy.push(this.vy - v2 * w.normalY2 * (1 + wallRestitution) - fVal * w.normalY1);
+              this.newvx.push(this.vx - v2 * w.normalX2 * (1 + w.wRest) - fVal * w.normalX1);
+              this.newvy.push(this.vy - v2 * w.normalY2 * (1 + w.wRest) - fVal * w.normalY1);
               this.newva.push(this.va + Math.sign(dist2) * 2 * fVal / this.size / this.moiCoef);
             }
           } else {
@@ -698,13 +729,13 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
             v1 = this.vx * normalX + this.vy * normalY;
             if (v1 < 0) {
               v2 = this.vx * normalY - this.vy * normalX;
-              let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+              let fMax = Math.abs((1 + w.wRest) * v1 * w.wFrict);
               let fVal = (v2 - Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
               if (fMax < Math.abs(fVal)) {
                   fVal = fMax * Math.sign(fVal);
               }
-              this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
-              this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
+              this.newvx.push(this.vx - v1 * normalX * (1 + w.wRest) - fVal * normalY);
+              this.newvy.push(this.vy - v1 * normalY * (1 + w.wRest) + fVal * normalX);
               this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
             }
           }
@@ -772,13 +803,13 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         let normalV = this.vx * normalX + this.vy * normalY;
         if (normalV < 0) {
           let sideV = this.vx * sideX + this.vy * sideY;
-          let fMax = Math.abs((1 + wallRestitution) * normalV * wallFriction);
+          let fMax = Math.abs((1 + w.wRest) * normalV * w.wFrict);
           let fVal = (sideV + w.dir * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
           if (fMax < Math.abs(fVal)) {
             fVal = fMax * Math.sign(fVal);
           }
-          this.newvx.push(this.vx - normalV * normalX * (1 + wallRestitution) - fVal * sideX);
-          this.newvy.push(this.vy - normalV * normalY * (1 + wallRestitution) - fVal * sideY);
+          this.newvx.push(this.vx - normalV * normalX * (1 + w.wRest) - fVal * sideX);
+          this.newvy.push(this.vy - normalV * normalY * (1 + w.wRest) - fVal * sideY);
           this.newva.push(this.va - 2 * w.dir * fVal / this.size / this.moiCoef);
         }
       }
@@ -805,7 +836,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
         let pxCol;
         let pyCol;
         
-        if (angDist1 + angDist2 <= Math.PI * 2 || Math.abs(offset1) <= effSize1 || Math.abs(offset2) <= effSize2) {
+        if (angMod(w.a2 - w.a2) == 0 || angDist1 + angDist2 <= Math.PI * 2 || Math.abs(offset1) <= effSize1 || Math.abs(offset2) <= effSize2) {
             let v1;
             let v2;
             let fMax;
@@ -846,13 +877,13 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
               v1 = this.vx * normalX + this.vy * normalY;
               if (v1 < 0) {
                 v2 = this.vx * normalY - this.vy * normalX;
-                fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                fMax = Math.abs((1 + w.wRest) * v1 * w.wFrict);
                 fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
-                this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
-                this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
+                this.newvx.push(this.vx - v1 * normalX * (1 + w.wRest) - fVal * normalY);
+                this.newvy.push(this.vy - v1 * normalY * (1 + w.wRest) + fVal * normalX);
                 this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
               }
             } else if (Math.abs(offset1 * 2 - this.size) <= eps || Math.abs(offset2 * 2 - this.size) <= eps) {
@@ -860,26 +891,26 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
                   v1 = this.vx * w.normalX1 + this.vy * w.normalY1;
                   if (v1 < 0) {
                     v2 = this.vx * w.normalY1 - this.vy * w.normalX1;
-                    fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                    fMax = Math.abs((1 + w.wRest) * v1 * w.wFrict);
                     fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                     if (fMax < Math.abs(fVal)) {
                         fVal = fMax * Math.sign(fVal);
                     }
-                    this.newvx.push(this.vx - v1 * w.normalX1 * (1 + wallRestitution) - fVal * w.normalY1);
-                    this.newvy.push(this.vy - v1 * w.normalY1 * (1 + wallRestitution) + fVal * w.normalX1);
+                    this.newvx.push(this.vx - v1 * w.normalX1 * (1 + w.wRest) - fVal * w.normalY1);
+                    this.newvy.push(this.vy - v1 * w.normalY1 * (1 + w.wRest) + fVal * w.normalX1);
                     this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
                   }
                 } else {
                   v1 = this.vx * w.normalX2 + this.vy * w.normalY2;
                   if (v1 < 0) {
                     v2 = this.vx * w.normalY2 - this.vy * w.normalX2;
-                    fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                    fMax = Math.abs((1 + w.wRest) * v1 * w.wFrict);
                     fVal = (v2 * 4 + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                     if (fMax < Math.abs(fVal)) {
                         fVal = fMax * Math.sign(fVal);
                     }
-                    this.newvx.push(this.vx - v1 * w.normalX2 * (1 + wallRestitution) - fVal * w.normalY2);
-                    this.newvy.push(this.vy - v1 * w.normalY2 * (1 + wallRestitution) + fVal * w.normalX2);
+                    this.newvx.push(this.vx - v1 * w.normalX2 * (1 + w.wRest) - fVal * w.normalY2);
+                    this.newvy.push(this.vy - v1 * w.normalY2 * (1 + w.wRest) + fVal * w.normalX2);
                     this.newva.push(this.va - 2 * fVal / this.size / this.moiCoef);
                   }
                 }
@@ -895,13 +926,13 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
               v1 = this.vx * normalX + this.vy * normalY;
               if (v1 < 0) {
                 v2 = this.vx * normalY - this.vy * normalX;
-                let fMax = Math.abs((1 + wallRestitution) * v1 * wallFriction);
+                let fMax = Math.abs((1 + w.wRest) * v1 * w.wFrict);
                 let fVal = (v2 + Math.sign(dist1) * this.va * this.size / 2) / (1 + 1 / this.moiCoef);
                 if (fMax < Math.abs(fVal)) {
                     fVal = fMax * Math.sign(fVal);
                 }
-                this.newvx.push(this.vx - v1 * normalX * (1 + wallRestitution) - fVal * normalY);
-                this.newvy.push(this.vy - v1 * normalY * (1 + wallRestitution) + fVal * normalX);
+                this.newvx.push(this.vx - v1 * normalX * (1 + w.wRest) - fVal * normalY);
+                this.newvy.push(this.vy - v1 * normalY * (1 + w.wRest) + fVal * normalX);
                 this.newva.push(this.va - Math.sign(dist1) * 2 * fVal / this.size / this.moiCoef);
             }
             }
@@ -930,13 +961,15 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, color) {
   this.setMOICoef(moiCoef);
 }
 
-function RectWall(x1, y1, x2, y2, size, color) {
+function RectWall(x1, y1, x2, y2, size, wRest, wFrict, color) {
     this.wallType = "rect";
     this.x1 = x1;
     this.y1 = y1;
     this.x2 = x2;
     this.y2 = y2;
     this.size = size;
+    this.wRest = wRest;
+    this.wFrict = wFrict;
     this.color = color;
     
     this.size1 = Math.abs(size);
@@ -948,6 +981,10 @@ function RectWall(x1, y1, x2, y2, size, color) {
     this.centerX = (this.x1 + this.x2 + this.normalX1 * this.size) / 2;
     this.centerY = (this.y1 + this.y2 + this.normalY1 * this.size) / 2;
     this.angle = angle(this.x1, this.y1, this.x2, this.y2);
+  
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.offsetSize = Math.max(Math.abs(this.x2 - this.x1) + Math.abs(this.size1 * this.normalX1), Math.abs(this.y2 - this.y1) + Math.abs(this.size1 * this.normalY1));
     
     this.show = function() {
         drawRectWall(this.x1, this.y1, this.x2, this.y2, this.size, this.color);
@@ -969,34 +1006,41 @@ function RectWall(x1, y1, x2, y2, size, color) {
     }
     
     this.rotate = function(da) {
-        let dax = Math.cos(da);
-        let day = Math.sin(da);
-        let normalX1 = this.normalX1 * dax - this.normalY1 * day;
-        let normalY1 = this.normalX1 * day + this.normalY1 * dax;
-        let normalX2 = normalY1;
-        let normalY2 = -normalX1;
-        this.normalX1 = normalX1;
-        this.normalY1 = normalY1;
-        this.normalX2 = normalX2;
-        this.normalY2 = normalY2;
-        this.x1 = this.centerX - (normalX1 * this.size + normalY1 * this.size2) / 2;
-        this.y1 = this.centerY - (normalY1 * this.size - normalX1 * this.size2) / 2;
-        this.x2 = this.centerX - (normalX1 * this.size - normalY1 * this.size2) / 2;
-        this.y2 = this.centerY - (normalY1 * this.size + normalX1 * this.size2) / 2;
-        this.angle = angle(this.x1, this.y1, this.x2, this.y2);
+      let dax = Math.cos(da);
+      let day = Math.sin(da);
+      let normalX1 = this.normalX1 * dax - this.normalY1 * day;
+      let normalY1 = this.normalX1 * day + this.normalY1 * dax;
+      let normalX2 = normalY1;
+      let normalY2 = -normalX1;
+      this.normalX1 = normalX1;
+      this.normalY1 = normalY1;
+      this.normalX2 = normalX2;
+      this.normalY2 = normalY2;
+      this.x1 = this.centerX - (normalX1 * this.size + normalY1 * this.size2) / 2;
+      this.y1 = this.centerY - (normalY1 * this.size - normalX1 * this.size2) / 2;
+      this.x2 = this.centerX - (normalX1 * this.size - normalY1 * this.size2) / 2;
+      this.y2 = this.centerY - (normalY1 * this.size + normalX1 * this.size2) / 2;
+      this.offsetSize = Math.max(Math.abs(this.x2 - this.x1) + Math.abs(this.size1 * this.normalX1), Math.abs(this.y2 - this.y1) + Math.abs(this.size1 * this.normalY1));
+      this.angle = angle(this.x1, this.y1, this.x2, this.y2);
     }
 }
 
-function TriWall(x, y, color) {
+function TriWall(x, y, wRest, wFrict, color) {
   this.wallType = "tri";
   this.x = x;
   this.y = y;
+  this.wRest = wRest;
+  this.wFrict = wFrict;
   this.color = color;
   
   this.num = x.length;
   this.centerX = average(this.x);
   this.centerY = average(this.y);
   this.angle = angle(this.centerX, this.centerY, this.x[0], this.y[0]);
+  
+  this.offsetX = (Math.max(...this.x) + Math.min(...this.x)) / 2 - this.centerX;
+  this.offsetY = (Math.max(...this.y) + Math.min(...this.y)) / 2 - this.centerY;
+  this.offsetSize = Math.max(Math.max(...this.x) - Math.min(...this.x), Math.max(...this.y) - Math.min(...this.y));
   
   this.dir = ((this.x[1] - this.x[0]) * (this.y[2] - this.y[1]) - (this.x[2] - this.x[1]) * (this.y[1] - this.y[0]) > 0 ? 1 : -1);
   this.size = [];
@@ -1066,18 +1110,24 @@ function TriWall(x, y, color) {
       this.midY[n] = newY;
     }
     this.angle += da;
+    
+    this.offsetX = (Math.max(...this.x) + Math.min(...this.x)) / 2 - this.centerX;
+    this.offsetY = (Math.max(...this.y) + Math.min(...this.y)) / 2 - this.centerY;
+    this.offsetSize = Math.max(Math.max(...this.x) - Math.min(...this.x), Math.max(...this.y) - Math.min(...this.y));
   }
 }
 
-function CircleWall(x, y, r1, r2, a1, a2, color) {
+function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     this.wallType = "circle";
     
     this.x = x;
     this.y = y;
-    this.r1 = r1;
-    this.r2 = r2;
-    this.a1 = a1;
-    this.a2 = a2;
+    this.r1 = Math.min(r1, r2);
+    this.r2 = Math.max(r1, r2);
+    this.a1 = Math.min(a1, a2);
+    this.a2 = Math.max(a1, a2);
+    this.wRest = wRest;
+    this.wFrict = wFrict;
     this.color = color;
     
     this.ax1 = Math.cos(this.a1);
@@ -1091,6 +1141,14 @@ function CircleWall(x, y, r1, r2, a1, a2, color) {
     this.centerX = x;
     this.centerY = y;
     this.angle = this.a1;
+    
+    let maxX = (Math.ceil(this.a1 / Math.PI / 2) == Math.floor(this.a2 / Math.PI / 2) ? this.r2 : Math.max(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
+    let minX = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 2) == Math.floor(this.a2 / Math.PI / 2 - 1 / 2) ? -this.r2 : Math.min(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
+    let maxY = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 4) == Math.floor(this.a2 / Math.PI / 2 - 1 / 4) ? this.r2 : Math.max(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
+    let minY = (Math.ceil(this.a1 / Math.PI / 2 - 3 / 4) == Math.floor(this.a2 / Math.PI / 2 - 3 / 4) ? -this.r2 : Math.min(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
+    this.offsetX = (maxX + minX) / 2;
+    this.offsetY = (maxY + minY) / 2;
+    this.offsetSize = Math.max(maxX - minX, maxY - minY);
     
     this.show = function() {
         drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
@@ -1115,6 +1173,8 @@ function CircleWall(x, y, r1, r2, a1, a2, color) {
     this.rotate = function(da) {
         this.a1 += da;
         this.a2 += da;
+        this.a2 -= Math.floor(this.a1 / Math.PI / 2) * Math.PI * 2;
+        this.a1 -= Math.floor(this.a1 / Math.PI / 2) * Math.PI * 2;
         
         this.ax1 = Math.cos(this.a1);
         this.ay1 = Math.sin(this.a1);
@@ -1124,6 +1184,14 @@ function CircleWall(x, y, r1, r2, a1, a2, color) {
         this.normalY1 = -this.ax1;
         this.normalX2 = -this.ay2;
         this.normalY2 = this.ax2;
+        
+        let maxX = (Math.ceil(this.a1 / Math.PI / 2) == Math.floor(this.a2 / Math.PI / 2) ? this.r2 : Math.max(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
+        let minX = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 2) == Math.floor(this.a2 / Math.PI / 2 - 1 / 2) ? -this.r2 : Math.min(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
+        let maxY = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 4) == Math.floor(this.a2 / Math.PI / 2 - 1 / 4) ? this.r2 : Math.max(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
+        let minY = (Math.ceil(this.a1 / Math.PI / 2 - 3 / 4) == Math.floor(this.a2 / Math.PI / 2 - 3 / 4) ? -this.r2 : Math.min(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
+        this.offsetX = (maxX + minX) / 2;
+        this.offsetY = (maxY + minY) / 2;
+        this.offsetSize = Math.max(maxX - minX, maxY - minY);
         
         this.angle = this.a1;
     }
@@ -1136,18 +1204,39 @@ function WallList(wList) {
     let num = 0;
     let totalX = 0;
     let totalY = 0;
-    for (w of this.walls) {
-        num += 1;
-        totalX += w.centerX;
-        totalY += w.centerY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    for (let w of this.walls) {
+      num += 1;
+      totalX += w.centerX;
+      totalY += w.centerY;
+      for (let n = 0; n < w.num; n++) {
+        if (w.x[n] > maxX) {
+          maxX = w.x[n];
+        }
+        if (w.x[n] < minX) {
+          minX = w.x[n];
+        }
+        if (w.y[n] > maxY) {
+          maxY = w.y[n];
+        }
+        if (w.y[n] < minY) {
+          minY = w.y[n];
+        }
+      }
     }
     if (num == 0) {
-        this.centerX = 0;
-        this.centerY = 0;
+      this.centerX = 0;
+      this.centerY = 0;
     } else {
-        this.centerX = totalX / num;
-        this.centerY = totalY / num;
+      this.centerX = totalX / num;
+      this.centerY = totalY / num;
     }
+    this.offsetX = (maxX + minX) / 2 - this.centerX;
+    this.offsetY = (maxY + minY) / 2 - this.centerY;
+    this.offsetSize = Math.max(maxX - minX, maxY - minY);
     this.angle = 0;
     
     this.show = function() {
@@ -1172,14 +1261,34 @@ function WallList(wList) {
     }
     
     this.rotate = function(da) {
-      
-        this.angle += da;
-        for (t of this.walls) {
-            t.rotate(da);
-            let dax = Math.cos(da);
-            let day = Math.sin(da);
-            t.move((t.centerX - this.centerX) * (dax - 1) - (t.centerY - this.centerY) * day, (t.centerX - this.centerX) * day + (t.centerY - this.centerY) * (dax - 1));
+      let maxX = Number.NEGATIVE_INFINITY;
+      let minX = Number.POSITIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      this.angle += da;
+      for (let w of this.walls) {
+        w.rotate(da);
+        let dax = Math.cos(da);
+        let day = Math.sin(da);
+        w.move((w.centerX - this.centerX) * (dax - 1) - (w.centerY - this.centerY) * day, (w.centerX - this.centerX) * day + (w.centerY - this.centerY) * (dax - 1));
+        for (let n = 0; n < w.num; n++) {
+          if (w.x[n] > maxX) {
+            maxX = w.x[n];
+          }
+          if (w.x[n] < minX) {
+            minX = w.x[n];
+          }
+          if (w.y[n] > maxY) {
+            maxY = w.y[n];
+          }
+          if (w.y[n] < minY) {
+            minY = w.y[n];
+          }
         }
+      }
+      this.offsetX = (maxX + minX) / 2 - this.centerX;
+      this.offsetY = (maxY + minY) / 2 - this.centerY;
+      this.offsetSize = Math.max(maxX - minX, maxY - minY);
     }
 }
 
@@ -1218,29 +1327,14 @@ function Preset(title, settings, objects, func) {
     if (settings.gy != undefined) {
       gy = settings.gy;
     }
-    if (settings.bFrict != undefined) {
-      ballFriction = settings.bFrict;
+    if (settings.bFrictCoef != undefined) {
+      bFrictCoef = settings.bFrictCoef;
     }
-    if (settings.bRest != undefined) {
-      ballRestitution = settings.bRest;
-    }
-    if (settings.wFrict != undefined) {
-      wallFriction = settings.wFrict;
-    }
-    if (settings.wRest != undefined) {
-      wallRestitution = settings.wRest;
+    if (settings.bRestCoef != undefined) {
+      bRestCoef = settings.bRestCoef;
     }
     if (settings.collide != undefined) {
       collide = settings.collide;
-    }
-    if (settings.drag0 != undefined) {
-      dragCoef0 = settings.drag0;
-    }
-    if (settings.drag1 != undefined) {
-      dragCoef1 = settings.drag1;
-    }
-    if (settings.drag2 != undefined) {
-      dragCoef2 = settings.drag2;
     }
     
     if (settings.density != undefined) {
@@ -1248,6 +1342,21 @@ function Preset(title, settings, objects, func) {
     }
     if (settings.moiCoef != undefined) {
       moiCoef = settings.moiCoef;
+    }
+    if (settings.wFrictCoef != undefined) {
+      wFrictCoef = settings.wFrictCoef;
+    }
+    if (settings.wRestCoef != undefined) {
+      wRestCoef = settings.wRestCoef;
+    }
+    if (settings.dragCoef0 != undefined) {
+      dragCoef0 = settings.dragCoef0;
+    }
+    if (settings.dragCoef1 != undefined) {
+      dragCoef1 = settings.dragCoef1;
+    }
+    if (settings.dragCoef2 != undefined) {
+      dragCoef2 = settings.dragCoef2;
     }
     if (settings.distInc != undefined) {
       distInc = settings.distInc;
@@ -1273,16 +1382,16 @@ function Preset(title, settings, objects, func) {
       for (o of objects) {
         switch (o.type) {
           case "ball":
-            balls.push(new Ball(o.px, o.py, o.pa, o.vx, o.vy, o.va, o.mass, o.size, o.moiCoef, o.color));
+            balls.push(new Ball(o.px, o.py, o.pa, o.vx, o.vy, o.va, o.mass, o.size, o.moiCoef, o.drag0, o.drag1, o.drag2, o.color));
             break;
           case "rectWall":
-            walls.push(new RectWall(o.x1, o.y1, o.x2, o.y2, o.size, o.color));
+            walls.push(new RectWall(o.x1, o.y1, o.x2, o.y2, o.size, o.wRest, o.wFrict, o.color));
             break;
           case "triWall":
-            walls.push(new TriWall(o.x, o.y, o.color));
+            walls.push(new TriWall(o.x, o.y, o.wRest, o.wFrict, o.color));
             break;
           case "circleWall":
-            walls.push(new CircleWall(o.x, o.y, o.r1, o.r2, o.a1, o.a2, o.color));
+            walls.push(new CircleWall(o.x, o.y, o.r1, o.r2, o.a1, o.a2, o.wRest, o.wFrict, o.color));
             break;
           case "listWall":
             walls.push(new WallList(o.wList));
@@ -1679,6 +1788,9 @@ function setup() {
           "mass": b.mass,
           "size": b.size,
           "moiCoef": b.moiCoef,
+          "drag0": b.drag0,
+          "drag1": b.drag1,
+          "drag2": b.drag2,
           "color": b.color
         });
       }
@@ -1692,6 +1804,8 @@ function setup() {
               "x2": w.x2, 
               "y2": w.y2, 
               "size": w.size, 
+              "wRest": w.wRest,
+              "wFrict": w.wFrict,
               "color": w.color
             });
             break;
@@ -1700,6 +1814,8 @@ function setup() {
               "type": "triWall",
               "x": w.x, 
               "y": w.y, 
+              "wRest": w.wRest,
+              "wFrict": w.wFrict,
               "color": w.color
             });
             break;
@@ -1712,6 +1828,8 @@ function setup() {
               "r2": w.r2, 
               "a1": w.a1, 
               "a2": w.a2, 
+              "wRest": w.wRest,
+              "wFrict": w.wFrict,
               "color": w.color
             });
             break;
@@ -1734,16 +1852,16 @@ function setup() {
         "G": G,
         "gx": gx,
         "gy": gy,
-        "wFrict": wallFriction,
-        "wRest": wallRestitution,
-        "bFrict": ballFriction,
-        "bRest": ballRestitution,
+        "bRestCoef": bRestCoef,
+        "bFrictCoef": bFrictCoef,
         "collide": collide,
+        "density": density,
+        "moiCoef": moiCoef,
+        "wRestCoef": wRestCoef,
+        "wFrictCoef": wFrictCoef,
         "drag0": dragCoef0,
         "drag1": dragCoef1,
         "drag2": dragCoef2,
-        "density": density,
-        "moiCoef": moiCoef,
         "distInc": distInc,
         "angInc": angInc
       }, objects)));
@@ -1756,16 +1874,16 @@ function setup() {
       "G": 0,
       "gx": 0,
       "gy": 0,
-      "wFrict": 0.2,
-      "wRest": 0.99,
-      "bFrict": 0.2,
-      "bRest": 0.99,
+      "bRestCoef": 0.99,
+      "bFrictCoef": 0.2,
       "collide": true,
+      "density": 1,
+      "moiCoef": 1/2,
+      "wRestCoef": 0.99,
+      "wFrictCoef": 0.2,
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 1,
-      "moiCoef": 1/2,
       "distInc": 1/2,
       "angInc": 15
     })),
@@ -1777,16 +1895,16 @@ function setup() {
       "G": 0,
       "gx": 0,
       "gy": -9.8,
-      "wFrict": 0.2,
-      "wRest": 0.99,
-      "bFrict": 0.2,
-      "bRest": 0.99,
+      "bRestCoef": 0.99,
+      "bFrictCoef": 0.2,
       "collide": true,
+      "density": 1,
+      "moiCoef": 1/2,
+      "wRestCoef": 0.99,
+      "wFrictCoef": 0.2,
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 1,
-      "moiCoef": 1/2,
       "distInc": 1/2,
       "angInc": 15
     })),
@@ -1798,16 +1916,16 @@ function setup() {
       "G": 6.67 * 10 ** -11,
       "gx": 0,
       "gy": 0,
-      "wFrict": 0.2,
-      "wRest": 0.99,
-      "bFrict": 0.2,
-      "bRest": 0.99,
+      "bRestCoef": 0.99,
+      "bFrictCoef": 0.2,
       "collide": true,
+      "density": 10 ** -2,
+      "moiCoef": 1/2,
+      "wRestCoef": 0.99,
+      "wFrictCoef": 0.2,
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 10 ** -2,
-      "moiCoef": 1/2,
       "distInc": 5 * 10 ** 10,
       "angInc": 15
     })),
@@ -1819,26 +1937,26 @@ function setup() {
       "G": 0,
       "gx": 0,
       "gy": -9.8,
-      "wFrict": 0.2,
-      "wRest": 0.99,
-      "bFrict": 0.2,
-      "bRest": 0.99,
+      "bRestCoef": 0.99,
+      "bFrictCoef": 0.2,
       "collide": true,
+      "density": 1,
+      "moiCoef": 1/2,
+      "wRestCoef": 0.99,
+      "wFrictCoef": 0.2,
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 1,
-      "moiCoef": 1/2,
       "distInc": 1/2,
       "angInc": 15
     }, [], function() {
       let height = 10;
       let width = 12 * main.width / main.height - 2;
       let thick = 1;
-      walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, "#000000"));
-      walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, "#000000"));
-      walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, "#000000"));
-      walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, "#000000"));
+      walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
+      walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
+      walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
+      walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
     })),
     new MenuPreset(6, true, new Preset("orbit", {
       "speed": 365 * 86400 / 10,
@@ -1848,21 +1966,21 @@ function setup() {
       "G": 6.67 * 10 ** -11,
       "gx": 0,
       "gy": 0,
-      "wFrict": 0.2,
-      "wRest": 0.99,
-      "bFrict": 0.2,
-      "bRest": 0.99,
+      "bRestCoef": 0.99,
+      "bFrictCoef": 0.2,
       "collide": true,
+      "density": 10 ** -2,
+      "moiCoef": 1/2,
+      "wRestCoef": 0.99,
+      "wFrictCoef": 0.2,
       "drag0": 0,
       "drag1": 0,
       "drag2": 0,
-      "density": 10 ** -2,
-      "moiCoef": 1/2,
       "distInc": 5 * 10 ** 10,
       "angInc": 15
     }, [], function() {
-      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, "red"));
-      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, "green"));
+      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, 0, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, 0, 0, 0, "red"));
+      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, 0, 0, 0, "green"));
     }))
   ];
   
@@ -1885,29 +2003,14 @@ function setup() {
     new MenuFloat(5, "gy", true, () => (gy), function(gy1) {
       gy = gy1;
     }),
-    new MenuFloat(6, "wFrict", true, () => (wallFriction), function(wallFriction1) {
-      wallFriction = wallFriction1;
+    new MenuFloat(6, "bRest", true, () => (bRestCoef), function(bRestCoef1) {
+      bRestCoef = bRestCoef1;
     }),
-    new MenuFloat(7, "wRest", true, () => (wallRestitution), function(wallRestitution1) {
-      wallRestitution = wallRestitution1;
+    new MenuFloat(7, "bFrict", true, () => (bFrictCoef), function(bFrictCoef1) {
+      bFrictCoef = bFrictCoef1;
     }),
-    new MenuFloat(8, "bFrict", true, () => (ballFriction), function(ballFriction1) {
-      ballFriction = ballFriction1;
-    }),
-    new MenuFloat(9, "bRest", true, () => (ballRestitution), function(ballRestitution1) {
-      ballRestitution = ballRestitution1;
-    }),
-    new MenuBoolean(10, "collide", true, () => (collide), function() {
+    new MenuBoolean(8, "collide", true, () => (collide), function() {
       collide = !collide;
-    }),
-    new MenuFloat(11, "drag0", true, () => (dragCoef0), function(dragCoef01) {
-      dragCoef0 = dragCoef01;
-    }),
-    new MenuFloat(12, "drag1", true, () => (dragCoef1), function(dragCoef11) {
-      dragCoef1 = dragCoef11;
-    }),
-    new MenuFloat(13, "drag2", true, () => (dragCoef2), function(dragCoef21) {
-      dragCoef2 = dragCoef21;
     })
   ];
   
@@ -1921,10 +2024,25 @@ function setup() {
     new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
       moiCoef = moiCoef1;
     }),
-    new MenuFloat(3, "distInc", true, () => (distInc), function(distInc1) {
+    new MenuFloat(3, "wRest", true, () => (wRestCoef), function(wRestCoef1) {
+      wRestCoef = wRestCoef1;
+    }),
+    new MenuFloat(4, "wFrict", true, () => (wFrictCoef), function(wFrictCoef1) {
+      wFrictCoef = wFrictCoef1;
+    }),
+    new MenuFloat(5, "drag0", true, () => (dragCoef0), function(dragCoef01) {
+      dragCoef0 = dragCoef01;
+    }),
+    new MenuFloat(6, "drag1", true, () => (dragCoef1), function(dragCoef11) {
+      dragCoef1 = dragCoef11;
+    }),
+    new MenuFloat(7, "drag2", true, () => (dragCoef2), function(dragCoef21) {
+      dragCoef2 = dragCoef21;
+    }),
+    new MenuFloat(8, "distInc", true, () => (distInc), function(distInc1) {
       distInc = distInc1;
     }),
-    new MenuNumber(4, "angInc", true, () => (angInc), function(angInc1) {
+    new MenuNumber(9, "angInc", true, () => (angInc), function(angInc1) {
       angInc = angInc1;
     })
   ];
@@ -1970,7 +2088,7 @@ function setup() {
     })
   ];
   
-  objValues = [
+  ballValues = [
     new MenuFloat(2, "mass", true, () => (dragObj.mass), function(mass) {
       dragObj.mass = mass;
       dragObj.updateMOI();
@@ -1990,7 +2108,25 @@ function setup() {
     }),
     new MenuFloat(7, "va", true, () => (dragObj.va), function(va) {
       dragObj.va = va;
+    }),
+    new MenuFloat(8, "drag0", true, () => (dragObj.drag0), function(drag01) {
+      dragObj.drag0 = drag01;
+    }),
+    new MenuFloat(9, "drag1", true, () => (dragObj.drag1), function(drag11) {
+      dragObj.drag1 = drag11;
+    }),
+    new MenuFloat(10, "drag2", true, () => (dragObj.drag2), function(drag21) {
+      dragObj.drag2 = drag21;
     })
+  ];
+  
+  wallValues = [
+    new MenuFloat(2, "wRest", true, () => (dragObj.wRest), function(wRest) {
+      dragObj.wRest = wRest;
+    }),
+    new MenuFloat(3, "wFrict", true, () => (dragObj.wFrict), function(wFrict) {
+      dragObj.wFrict = wFrict;
+    }),
   ];
   
   setMenuHeight();
@@ -2141,17 +2277,49 @@ function showMenu() {
   ctxMenu.fillStyle = "#1f0f6f";
   ctxMenu.fillRect(0, 0, menu.width, menu.height);
   
-  if (dragObj == null) {
-    ctxMenu.resetTransform();
-    for (v of menuValues[menuType]) {
-      v.show();
+  if (dragObj != null) {
+    if (dragObj.wallType == undefined) {
+      drawBall(menu.width / 2, menu.width * 2 / 5, -dragObj.pa, menu.width * 3 / 5 * (menuObjHovered ? 1.08 : 1), dragObj.color, ctxMenu);
+    } else {
+      let x;
+      let y;
+      let sizeScale = (menuObjHovered ? 1.08 : 1) * menu.width * 3 / 5 / dragObj.offsetSize;
+      switch (dragObj.wallType) {
+        case "rect":
+          drawRectWall(menu.width / 2 + (dragObj.x1 - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y1 - dragObj.centerY - dragObj.offsetY) * sizeScale, menu.width / 2 + (dragObj.x2 - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y2 - dragObj.centerY - dragObj.offsetY) * sizeScale, -dragObj.size * sizeScale, dragObj.color, ctxMenu);
+          break;
+        case "tri":
+          x = [];
+          y = [];
+          for (let n = 0; n < dragObj.num; n++) {
+            x.push(menu.width / 2 + (dragObj.x[n] - dragObj.centerX - dragObj.offsetX) * sizeScale);
+            y.push(menu.width * 2 / 5 - (dragObj.y[n] - dragObj.centerY - dragObj.offsetY) * sizeScale);
+          }
+          drawTriWall(x, y, dragObj.color, ctxMenu);
+          break;
+        case "circle":
+          drawCircleWall(menu.width / 2 + (dragObj.x - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y - dragObj.centerY - dragObj.offsetY) * sizeScale, dragObj.r1 * sizeScale, dragObj.r2 * sizeScale, -dragObj.a2, -dragObj.a1, dragObj.color, ctxMenu);
+          break;
+        case "list":
+          let wList = [];
+          for (let w of dragObj.walls) {
+            x = [];
+            y = [];
+            for (let n = 0; n < w.num; n++) {
+              x.push(menu.width / 2 + (w.x[n] - dragObj.centerX - dragObj.offsetX) * sizeScale);
+              y.push(menu.width * 2 / 5 - (w.y[n] - dragObj.centerY - dragObj.offsetY) * sizeScale);
+            }
+            wList.push([x, y, wRestCoef, wFrictCoef, w.color]);
+          }
+          drawWallList(getWalls(wList), ctxMenu);
+          break;
+      }
     }
-  } else if (dragObj.wallType == undefined) {
-    drawBall(menu.width / 2, menu.width * 2 / 5, -dragObj.pa, menu.width * 3 / 5 * (ballHovered ? 1.08 : 1), dragObj.color, ctxMenu);
-    ctxMenu.resetTransform();
-    for (v of objValues) {
-      v.show();
-    }
+  }
+  
+  ctxMenu.resetTransform();
+  for (v of getMenuValues()) {
+    v.show();
   }
   
 }
@@ -2207,13 +2375,15 @@ function frame(time) {
             if (dragMode == true) {
                 dragObj.px = alignX(mouseX + dragOffsetX);
                 dragObj.py = alignY(mouseY + dragOffsetY);
-                dragvx.push(mouseX - pfmouseX);
-                if (dragvx.length > dragVTime * fps) {
-                    dragvx.shift();
-                }
-                dragvy.push(mouseY - pfmouseY);
-                if (dragvy.length > dragVTime * fps) {
-                    dragvy.shift();
+                if (!isNaN(mouseX - pfmouseX) && !isNaN(mouseY - pfmouseY)) {
+                  dragvx.push(mouseX - pfmouseX);
+                  if (dragvx.length > dragVTime * fps) {
+                      dragvx.shift();
+                  }
+                  dragvy.push(mouseY - pfmouseY);
+                  if (dragvy.length > dragVTime * fps) {
+                      dragvy.shift();
+                  }
                 }
             } else if (dragMode == false) {
                 dragObj.pa = alignAngle(angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA);
@@ -2221,9 +2391,11 @@ function frame(time) {
                 if (va > Math.PI) {
                     va -= Math.PI;
                 }
-                dragva.push(va);
-                if (dragva.length > dragVTime * fps) {
-                    dragva.shift();
+                if (!isNaN(va)) {
+                  dragva.push(va);
+                  if (dragva.length > dragVTime * fps) {
+                      dragva.shift();
+                  }
                 }
             }
         } else {;
@@ -2263,7 +2435,7 @@ setup();
 start();
 show();
 showMenu();
-frame();
+requestAnimationFrame(frame);
 
 function wallListSize(x, y, mx, my) {
     //////use distance
@@ -2301,15 +2473,15 @@ function getWallList(x, y, size, color) {
       ox = (x[pn] + x[n]) / 2 + normalX * size;
       oy = (y[pn] + y[n]) / 2 + normalY * size;
       
-      wList.push([[pox, x[pn], ox], [poy, y[pn], oy], color]);
-      wList.push([[x[pn], ox, x[n]], [y[pn], oy, y[n]], color]);
+      wList.push([[pox, x[pn], ox], [poy, y[pn], oy], wRestCoef, wFrictCoef, color]);
+      wList.push([[x[pn], ox, x[n]], [y[pn], oy, y[n]], wRestCoef, wFrictCoef, color]);
       
       pn = n;
       pox = ox;
       poy = oy;
     }
   }
-  wList.push([[pox, x[pn], x[pn] + normalX * size], [poy, y[pn], y[pn] + normalY * size], color]);
+  wList.push([[pox, x[pn], x[pn] + normalX * size], [poy, y[pn], y[pn] + normalY * size], wRestCoef, wFrictCoef, color]);
   return getWalls(wList);
 }
 
@@ -2332,16 +2504,16 @@ function getWalls(l) {
 }
 
 function createBall() {
-    let newSize = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
-    balls.push(new Ball(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, newColor));
-    
-    newX1 = null;
-    newY1 = null;
+  let newSize = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
+  balls.push(new Ball(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, dragCoef0, dragCoef1, dragCoef2, newColor));
+  
+  newX1 = null;
+  newY1 = null;
 }
 
 function createRectWall() {
   let size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
-  walls.push(new RectWall(newX1, newY1, newX2, newY2, size, newColor));
+  walls.push(new RectWall(newX1, newY1, newX2, newY2, size, wRestCoef, wFrictCoef, newColor));
   
   newX1 = null;
   newY1 = null;
@@ -2352,7 +2524,7 @@ function createRectWall() {
 
 function createTriWall() {
   let aligned = alignLine(newX2, newY2, mouseX, mouseY);
-  walls.push(new TriWall([newX1, newX2, aligned[0]], [newY1, newY2, aligned[1]], newColor));
+  walls.push(new TriWall([newX1, newX2, aligned[0]], [newY1, newY2, aligned[1]], wRestCoef, wFrictCoef, newColor));
   
   newX1 = null;
   newY1 = null;
@@ -2371,7 +2543,7 @@ function createCircleWall() {
     if (Math.abs(a2 - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
         a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
     }
-    walls.push(new CircleWall(newX1, newY1, Math.min(r1, r2), Math.max(r1, r2), Math.min(a1, a2), Math.max(a1, a2), newColor));
+    walls.push(new CircleWall(newX1, newY1, Math.min(r1, r2), Math.max(r1, r2), Math.min(a1, a2), Math.max(a1, a2), wRestCoef, wFrictCoef, newColor));
     newX1 = null;
     newY1 = null;
     newX2 = null;
@@ -2401,13 +2573,13 @@ function drag(mode) {
         }
       } else {
         if (dragMode == true) {
-            dragObj.px = mouseX + dragOffsetX;
-            dragObj.py = mouseY + dragOffsetY;
-            dragObj.vx = average(dragvx) / rawMaindt / speed;
-            dragObj.vy = average(dragvy) / rawMaindt / speed;
+          dragObj.px = alignX(mouseX + dragOffsetX);
+          dragObj.py = alignY(mouseY + dragOffsetY);
+          dragObj.vx = (dragvx.length == 0 ? 0 : average(dragvx)) / rawMaindt / speed;
+          dragObj.vy = (dragvy.length == 0 ? 0 : average(dragvy)) / rawMaindt / speed;
         } else if (dragMode == false) {
-            dragObj.pa = angle(b.px, b.py, mouseX, mouseY) + dragOffsetA;
-            dragObj.va = average(dragva) / rawMaindt / speed;
+          dragObj.pa = alignAngle(angle(b.px, b.py, mouseX, mouseY) + dragOffsetA);
+          dragObj.va = (dragva.length == 0 ? 0 : average(dragva)) / rawMaindt / speed;
         }
       }
     } else {
@@ -2422,7 +2594,7 @@ function drag(mode) {
         if (dragMode == true) {
           dragObj.move(alignX(mouseX + dragOffsetX) - dragObj.centerX, alignY(mouseY + dragOffsetY) - dragObj.centerY);
         } else if (dragMode == false) {
-          dragObj.rotate(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA - dragObj.angle);
+          dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
         }
       }
     }
@@ -2448,6 +2620,7 @@ function checkClick() {
                 if (dist(newX1[0], newY1[0], mouseX, mouseY) >= minDrag / scaleFactor) {
                     createWallList();
                 }
+                break;
         }
     } else if (newX1 != null) {
         let aligned;
@@ -2486,10 +2659,13 @@ function checkClick() {
     return true;
 }
 
-function updateBallHover() {
+function updateMenuObjHover() {
   if (dragObj != null) {
     if (dragObj.wallType == undefined) {
-      ballHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= menu.width * 3 / 10 * (ballHovered ? 1.08 : 1);
+      menuObjHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= menu.width * 3 / 10 * (menuObjHovered ? 1.08 : 1);
+    } else {
+      let sizeScale = dragObj.offsetSize / menu.width / 3 * 5 / (menuObjHovered ? 1.08 : 1);
+      menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * sizeScale + dragObj.centerX + dragObj.offsetX, (menu.width * 2 / 5 - clientY) * sizeScale + dragObj.centerY + dragObj.offsetY);
     }
   }
 }
@@ -2518,9 +2694,9 @@ document.onmousemove = function(event) {
         }
     }
     
-    updateBallHover();
+    updateMenuObjHover();
     
-    for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+    for (v of getMenuValues()) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
     }
     
@@ -2536,14 +2712,14 @@ document.onkeydown = function(event) {
     
     switch (event.key.toLowerCase()) {
         case "backspace":
-            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+            for (v of getMenuValues()) {
               if (v.clicked) {
                 v.back();
               }
             }
             break;
         case "enter":
-            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+            for (v of getMenuValues()) {
               if (v.clicked) {
                 inValue = false;
                 v.set();
@@ -2551,7 +2727,7 @@ document.onkeydown = function(event) {
             }
             break;
         case "escape":
-            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+            for (v of getMenuValues()) {
               if (v.clicked) {
                 inValue = false;
                 v.esc();
@@ -2559,7 +2735,7 @@ document.onkeydown = function(event) {
             }
             break;
         default:
-            for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+            for (v of getMenuValues()) {
               if (v.clicked) {
                 v.updateValue(event.key);
               }
@@ -2582,10 +2758,10 @@ document.onkeydown = function(event) {
                 if (isNaN(newX1)) {
                     newX1 = null;
                     newY1 = null;
-                    newX2 = null;
-                    newY2 = null;
-                    newA = null;
                 }
+                newX2 = null;
+                newY2 = null;
+                newA = null;
             }
             break;
         case "c":
@@ -2656,7 +2832,12 @@ document.onkeydown = function(event) {
             }
             break;
         case "u":
-            update(speed / fps / upf);
+            let dt = speed / fps / upf;
+            if (dt > 0 && dt < 2 * speed / fps) {
+              for (let n = 0; n < upf; n++) {
+                update(dt);
+              }
+            }
             break;
         case "w":
             if (dragType != "w") {
@@ -2788,13 +2969,13 @@ menu.onmousedown = function(event) {
   
     if (inValue) {
       inValue = false;
-      for (w of (dragObj == null ? menuValues[menuType] : objValues)) {
-        if (w.clicked) {
-          w.esc();
+      for (v of getMenuValues()) {
+        if (v.clicked) {
+          v.esc();
         }
       }
     }
-    for (v of (dragObj == null ? menuValues[menuType] : objValues)) {
+    for (v of getMenuValues()) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
       if (v.hovered) {
         v.click();
@@ -2803,11 +2984,9 @@ menu.onmousedown = function(event) {
       }
     }
     if (dragObj != null) {
-      if (dragObj.wallType == undefined) {
-        updateBallHover();
-        if (ballHovered) {
-          shift(dragObj.px - gameWidth / 2 - screenX, dragObj.py - gameHeight / 2 - screenY);
-        }
+      updateMenuObjHover();
+      if (menuObjHovered) {
+        shift(dragObj.centerX - gameWidth / 2 - screenX, dragObj.centerY - gameHeight / 2 - screenY);
       }
     }
   }
