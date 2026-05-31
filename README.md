@@ -1,8 +1,9 @@
 # Physics-Simulator
-This physics simulator is capable of simulating rigid collisions and gravitation, with related constants such as little g, big G, friction, and restitution being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, circular, and custom walls are supported.
+This physics simulator is capable of simulating rigid collisions and gravitation, with related constants such as little g, big G, friction, restitution, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported.
 
-The default system is the Earth orbitting our Sun, with the actual values for G, the masses, and the distances.
-Positive directions are right and down.
+Positive directions are right and up.
+Press "p" to pause the simulation.
+Press "u" to jump one from.
 Press "r" to reset.
   Press "r" once to remove all balls.
   Press "r" twice (or when there are no balls) to remove all walls.
@@ -34,13 +35,19 @@ Click objects to select and drag them.
   Hold "shift" to align positions and distances to set increments.
   Hold "control" to align angles to set increments.
   Click the object in the menu to center on it.
-Click balls to edit their states.
-  "mass" is the mass of the ball.
-  "size" is the diameter of the ball.
-  "moi" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
+Click a ball to edit its variables.
   "vx" is the horizontal velocity of the ball.
   "vy" is the vertical velocity of the ball.
   "va" is the angular velocity of the ball, with counterclockwise rotation being positive.
+  "mass" is the mass of the ball.
+  "size" is the diameter of the ball.
+  "moi" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
+  "drag0" is the coefficient of the constant (v⁰) term of drag.
+  "drag1" is the coefficient of the linear (v¹) term of drag.
+  "drag2" is the coefficient of the quadratic (v²) term of drag.
+Click a wall to edit its variables.
+  "wRest" is the coefficient of restitution between the wall and balls.
+  "wFrict" is the coefficient of friction between the wall and balls.
 Click "settings" to edit performance settings.
   "fps" is the maximum frames per second, which is also capped by browser refresh rate (usually 60).
   "upf" is the maximum number of simulation updates per frame.
@@ -54,22 +61,23 @@ Click "presets" to select simulation presets.
   Click a preset to apply it.
   While holding "shift", click a preset to edit its title.
   While holding "control", press "backspace" to delete a preset while editting it.
-Click "variables" to edit simulation settings.
+Click "variables" to edit simulation variables.
   "speed" is the speed of the simulation.
   "height" is the in-simulation height of the screen (the width will automatically adjust).
   "G" is the universal gravitational constant.
-  "gx" and "gy" are the vector components of the uniform gravitation force.
-  "wFrict" is the friction coefficient between balls and walls.
-  "wRest" is the coefficient of restitution between balls and walls.
-  "bfrict" is the friction coefficient between balls.
-  "brest" is the coefficient of restitution between balls.
+  "gx" is the horizontal component of the uniform gravitation force.
+  "gy" is the vertical component of the uniform gravitation force.
+  "bRest" is the coefficient of restitution between balls.
+  "bFrict" is the friction coefficient between balls.
   "collide" is whether or not balls collide with other balls.
-  "drag0" is the coefficient of the constant term of drag.
-  "drag1" is the coefficient of the linear term of drag.
-  "drag2" is the coefficient of the quadratic term of drag.
 Click "defaults" to edit the ball creation defaults.
   "density" controls the mass of the created balls (mass = density * size³).
   "moi" controls the coefficient of the created ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
+  "wRest" controls the coefficient of restitution between a wall and balls.
+  "wFrict" controls the coefficient of friction between a wall and balls.
+  "drag0" controls the coefficient of the constant (v⁰) term of drag.
+  "drag1" controls the coefficient of the linear (v¹) term of drag.
+  "drag2" controls the coefficient of the quadratic (v²) term of drag.
   "distInc" is the increment applied when holding "shift".
   "angInc" is the increment applied when holding "control".
 Click "info" to view the simulation information.
