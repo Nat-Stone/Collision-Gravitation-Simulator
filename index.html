@@ -1238,6 +1238,8 @@ function WallList(wList) {
     this.offsetY = (maxY + minY) / 2 - this.centerY;
     this.offsetSize = Math.max(maxX - minX, maxY - minY);
     this.angle = 0;
+    this.wRest = this.walls[0].wRest;
+    this.wFrict = this.walls[0].wFrict;
     
     this.show = function() {
       drawWallList(this.walls);
@@ -1289,6 +1291,20 @@ function WallList(wList) {
       this.offsetX = (maxX + minX) / 2 - this.centerX;
       this.offsetY = (maxY + minY) / 2 - this.centerY;
       this.offsetSize = Math.max(maxX - minX, maxY - minY);
+    }
+    
+    this.setWRest = function(wRest) {
+      this.wRest = wRest;
+      for (let w of this.walls) {
+        w.wRest = wRest;
+      }
+    }
+    
+    this.setWFrict = function(wFrict) {
+      this.wFrict = wFrict;
+      for (let w of this.walls) {
+        w.wFrict = wFrict;
+      }
     }
 }
 
@@ -2089,25 +2105,25 @@ function setup() {
   ];
   
   ballValues = [
-    new MenuFloat(2, "mass", true, () => (dragObj.mass), function(mass) {
+    new MenuFloat(2, "vx", true, () => (dragObj.vx), function(vx) {
+      dragObj.vx = vx;
+    }),
+    new MenuFloat(3, "vy", true, () => (dragObj.vy), function(vy) {
+      dragObj.vy = vy;
+    }),
+    new MenuFloat(4, "va", true, () => (dragObj.va), function(va) {
+      dragObj.va = va;
+    }),
+    new MenuFloat(5, "mass", true, () => (dragObj.mass), function(mass) {
       dragObj.mass = mass;
       dragObj.updateMOI();
     }),
-    new MenuFloat(3, "size", true, () => (dragObj.size), function(size) {
+    new MenuFloat(6, "size", true, () => (dragObj.size), function(size) {
       dragObj.size = size;
       dragObj.updateMOI();
     }),
-    new MenuFloat(4, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
+    new MenuFloat(7, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
       dragObj.setMOICoef(moiCoef);
-    }),
-    new MenuFloat(5, "vx", true, () => (dragObj.vx), function(vx) {
-      dragObj.vx = vx;
-    }),
-    new MenuFloat(6, "vy", true, () => (dragObj.vy), function(vy) {
-      dragObj.vy = vy;
-    }),
-    new MenuFloat(7, "va", true, () => (dragObj.va), function(va) {
-      dragObj.va = va;
     }),
     new MenuFloat(8, "drag0", true, () => (dragObj.drag0), function(drag01) {
       dragObj.drag0 = drag01;
@@ -2122,10 +2138,18 @@ function setup() {
   
   wallValues = [
     new MenuFloat(2, "wRest", true, () => (dragObj.wRest), function(wRest) {
-      dragObj.wRest = wRest;
+      if (dragObj.wallType == "list") {
+        dragObj.setWRest(wRest);
+      } else {
+        dragObj.wRest = wRest;
+      }
     }),
     new MenuFloat(3, "wFrict", true, () => (dragObj.wFrict), function(wFrict) {
-      dragObj.wFrict = wFrict;
+      if (dragObj.wallType == "list") {
+        dragObj.setWFrict(wFrict);
+      } else {
+        dragObj.wFrict = wFrict;
+      }
     }),
   ];
   
