@@ -30,6 +30,8 @@
         <p id="p1"></p>
         <p id="p2"></p>
         <p id="p3"></p>
+        <p id="p4"></p>
+        <p id="p5"></p>
         -->
         <script>
           
@@ -51,7 +53,7 @@ var pHeight;
 var gameWidth;;
 var scaleFactor;
 
-const eps = 1 / 1000000;
+const eps = 10 ** -6;
 
 var gameHeight = 10;
 var screenX = 0;
@@ -448,16 +450,9 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   }
   
   this.update1 = function(dt) {
-    //save previous
-    this.ppx = this.px;
-    this.ppy = this.py;
-    this.ppa = this.pa;
-    this.pvx = this.vx;
-    this.pvy = this.vy;
-    this.pva = this.va;
     //acceleration
     this.accelerate();
-  }
+  } //acceleration
   
   this.update2 = function(dt) {
     //move
@@ -469,6 +464,10 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.vy += this.ay * dt;
     this.va += this.aa * dt;
     this.drag(dt);
+    //previous
+    this.pvx = this.vx;
+    this.pvy = this.vy;
+    this.pva = this.va;
     //new
     this.collided = [];
     this.dpx = [];
@@ -482,10 +481,10 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.bounceNormalY = 0;
     this.bounceRest = 0;
     this.bounceFrict = 0;
-  }
+  } //movement
   
   this.update3 = function(dt) {
-      //collisions
+      //balls
       if (collide) {
         for (b of balls) {
           if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
@@ -493,30 +492,29 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
           }
         }
       }
+      //walls
       for (w of walls) {
         if (w != dragObj || dragMode == undefined) {
           this.collideWall(w);
         }
       }
-  }
+  } //collisions
   
   this.update4 = function(dt) {
+    if (this.bounceTotal != 0) {
+      let normalMag = Math.sqrt(this.bounceNormalX * this.bounceNormalX + this.bounceNormalY * this.bounceNormalY);
+      normalMag = (normalMag == 0 ? 1 : normalMag);
+      this.bounceNormalX /= normalMag;
+      this.bounceNormalY /= normalMag;
+      this.bounceRest /= this.bounceTotal;
+      this.bounceFrict /= this.bounceTotal;
+    }
     let pvx = this.vx;
     let pvy = this.vy;
     let pva = this.va;
     let ppx = this.px;
     let ppy = this.py;
     let ppa = this.pa;
-    //walls
-    if (this.bounceTotal != 0) {
-      let normalMag = Math.sqrt(this.bounceNormalX * this.bounceNormalX + this.bounceNormalY * this.bounceNormalY);
-      normalMag = (normalMag == 0 ? 1 : normalMag);
-      this.bounce(this.bounceNormalX / normalMag, this.bounceNormalY / normalMag, this.bounceRest / this.bounceTotal, this.bounceFrict / this.bounceTotal);
-    }
-    //apply
-    this.vx += sum(this.dvx);
-    this.vy += sum(this.dvy);
-    this.va += sum(this.dva);
     if (push) {
       let newN;
       newN = average(this.dpx);
@@ -532,7 +530,6 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
         this.pa += newN;
       }
     }
-    
     //boundaries
     if (bounded) {
       let fVal = 0;
@@ -592,32 +589,24 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     }
     //potential
     if (ppx != this.px || ppy != this.py) {
-      //this.vx = (this.vx == 0 ? Math.sign(gx) : Math.sign(this.vx)) * Math.sqrt(Math.max(this.vx * this.vx + 2 * gx * (this.px - ppx), 0));
-      //this.vy = (this.vy == 0 ? Math.sign(gy) : Math.sign(this.vy)) * Math.sqrt(Math.max(this.vy * this.vy + 2 * gy * (this.py - ppy), 0));
-      this.ax = gx;
-      this.ay = gy;
       let pe = - gx * ppx - gy * ppy;
       let e = - gx * this.px - gy * this.py;
-      let distance;
-      let a;
       if (G != 0) {
         for (b of balls) {
           if (this != b) {
-            distance = dist(ppx, ppy, b.px, b.py);
-            a = G * b.mass / (distance ** 3);
-            this.ax += a * (b.px - ppx);
-            this.ay += a * (b.py - ppy);
-            pe -= G * b.mass / distance;
+            pe -= G * b.mass / dist(ppx, ppy, b.px, b.py);
             e -= G * b.mass / dist(this.px, this.py, b.px, b.py);
           }
         }
       }
-      if (this.ax != 0 || this.ay != 0) {
-        a = this.ax * this.ax + this.ay * this.ay;
-        let vDota = this.vx * this.ax + this.vy * this.ay;
+      if (pe != e) {
+        let ax = this.px - ppx;
+        let ay = this.py - ppy;
+        let a = ax * ax + ay * ay;
+        let vDota = this.vx * ax + this.vy * ay;
         let t = ((vDota >= 0 ? 1 : -1) * Math.sqrt(Math.max(vDota * vDota + 2 * a * (pe - e), 0)) - vDota) / a;
-        this.vx += this.ax * t;
-        this.vy += this.ay * t;
+        this.vx += ax * t;
+        this.vy += ay * t;
       }
     }
     //set
@@ -633,7 +622,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.px = ppx;
     this.py = ppy;
     this.pa = ppa;
-  }
+  } //calculate positions
   
   this.update5 = function(dt) {
     if (push) {
@@ -644,11 +633,30 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.vx = this.nvx;
     this.vy = this.nvy;
     this.va = this.nva;
+  } //apply positions
+  
+  this.update6 = function(dt) {
+    //balls
+    for (let b of this.collided) {
+      this.bounceBall(b);
+    }
+    //walls
+    if (this.bounceTotal != 0) {
+      this.bounceWall(this.bounceNormalX, this.bounceNormalY, this.bounceRest, this.bounceFrict);
+    }
+  } //calculate velocities
+  
+  this.update7 = function(dt) {
+    //apply
+    this.vx += sum(this.dvx);
+    this.vy += sum(this.dvy);
+    this.va += sum(this.dva);
+    //reset
     this.collided = [];
     this.ax = 0;
     this.ay = 0;
     this.aa = 0;
-  }
+  } //apply velocities
   
   this.accelerate = function() {
     //uniform gravity
@@ -693,93 +701,96 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   this.addBounce = function(normalX, normalY, rest, frict, normalV) {
     let mag;
     if (normalV == undefined) {
-      mag = Math.abs(this.vx * normalX + this.vy * normalY);
+      mag = this.vx * normalX + this.vy * normalY;
     } else {
-      mag = Math.abs(normalV);
+      mag = normalV;
     }
-    this.bounceTotal += mag;
-    this.bounceNormalX += normalX * mag;
-    this.bounceNormalY += normalY * mag;
-    this.bounceRest += rest * mag;
-    this.bounceFrict += frict * mag;
+    if (mag <= eps * Math.sqrt(this.vx * this.vx + this.vy * this.vy)) {
+      mag = Math.abs(mag);
+      this.bounceTotal += mag;
+      this.bounceNormalX += normalX * mag;
+      this.bounceNormalY += normalY * mag;
+      this.bounceRest += rest * mag;
+      this.bounceFrict += frict * mag;
+    }
   }
   
-  this.bounce = function(normalX, normalY, rest, frict) {
-    let normalV = this.vx * normalX + this.vy * normalY;
-    if (normalV < 0) {
-      let sideV = this.vx * normalY - this.vy * normalX;
-      let fMax = Math.abs((1 + rest) * normalV * frict);
-      let fVal = (sideV + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
-      if (fMax < Math.abs(fVal)) {
-        fVal = fMax * Math.sign(fVal);
-      }
-      this.dvx.push(-normalV * normalX * (1 + rest) - fVal * normalY);
-      this.dvy.push(-normalV * normalY * (1 + rest) + fVal * normalX);
-      this.dva.push(-2 * fVal / this.size / this.moiCoef);
+  this.bounceBall = function(b) {
+    let pvDotp = (this.pvx - b.pvx) * (b.px - this.px) + (this.pvy - b.pvy) * (b.py - this.py);
+    if (pvDotp >= -eps * Math.sqrt(this.vx * this.vx + this.vy * this.vy)) {
+      let totalMass = this.mass + b.mass;
+      let this_mass = (totalMass == 0 ? 1 : this.mass);
+      let b_mass = (totalMass == 0 ? 1 : b.mass);
+      totalMass = (totalMass == 0 ? 2 : totalMass);
+      let distance = dist(this.px, this.py, b.px, b.py);
+      let vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
+      let normalVelMag = vDotp * (1 + bRestCoef) / distance / totalMass;
+      let normalVelAng = normalVelMag / distance;
+      let normalVelX = normalVelAng * (b.px - this.px);
+      let normalVelY = normalVelAng * (b.py - this.py);
+      let force = Math.abs(pvDotp + vDotp * bRestCoef) / distance / totalMass;
+      let vDotSide = ((this.vx - b.vx) * (this.py - b.py) + (this.vy - b.vy) * (b.px - this.px)) / distance;
+      let sideVel = vDotSide + (this.va * this.size + b.va * b.size) / 2;
+      let sideVelAng = sideVel / distance;
+      let sideVelX = sideVelAng * (this.py - b.py);
+      let sideVelY = sideVelAng * (b.px - this.px);
+      let frictionVelMag = Math.sign(sideVel) * Math.min(Math.abs(sideVel) / (1 + 1 / this.moiCoef) / totalMass, Math.abs(bFrictCoef * force));
+      let frictionVelAng = frictionVelMag / (sideVel == 0 ? Math.SQRT2 : sideVel);
+      let frictionVelX = frictionVelAng * (sideVel == 0 ? 1 : sideVelX);
+      let frictionVelY = frictionVelAng * (sideVel == 0 ? 1 : sideVelY);
+      
+      this.dvx.push(-b_mass * (normalVelX + frictionVelX));
+      b.dvx.push(this_mass * (normalVelX + frictionVelX));
+      this.dvy.push(-b_mass * (normalVelY + frictionVelY));
+      b.dvy.push(this_mass * (normalVelY + frictionVelY));
+      this.dva.push(-b_mass * 2 * frictionVelMag / this.size / this.moiCoef);
+      b.dva.push(-this_mass * 2 * frictionVelMag / b.size / b.moiCoef);
     }
+  }
+  
+  this.bounceWall = function(normalX, normalY, rest, sFrict) {
+    let pNormalV = this.pvx * normalX + this.pvy * normalY;
+    let normalV = this.vx * normalX + this.vy * normalY;
+    let force = Math.abs(pNormalV + normalV * rest);
+    let sideV = this.vx * normalY - this.vy * normalX;
+    let fMax = force * (Math.abs(sideV + this.pva * this.size / 2) <= Math.abs(sideV) * eps ? sFrict : sFrict * 1);
+    let fVal = (sideV + this.va * this.size / 2) / (1 + 1 / this.moiCoef);
+    if (fMax < Math.abs(fVal)) {
+      fVal = fMax * Math.sign(fVal);
+    }
+    this.dvx.push(-(1 + rest) * normalV * normalX - fVal * normalY);
+    this.dvy.push(-(1 + rest) * normalV * normalY + fVal * normalX);
+    this.dva.push(-2 * fVal / this.size / this.moiCoef);
+    
+    let vx = this.vx;
+    let vy = this.vy;
+    let va = this.va;
+    this.vx += this.dvx.at(-1);
+    this.vy += this.dvy.at(-1);
+    this.va += this.dva.at(-1);
+    this.vx = vx;
+    this.vy = vy;
+    this.va = va;
   }
   
   this.collideBall = function(b) {
-      let sqDistance = sqdist(this.px, this.py, b.px, b.py);
-      if ((this.size + b.size) * (this.size + b.size) > 4 * sqDistance) {
-          let totalMass = this.mass + b.mass;
-          let this_mass = (totalMass == 0 ? 1 : this.mass);
-          let b_mass = (totalMass == 0 ? 1 : b.mass);
-          totalMass = (totalMass == 0 ? 2 : totalMass);
-          let curDist = Math.sqrt(sqDistance);
-          let targetDist = /*(1 + eps) * */(this.size + b.size) / 2;
-          let pushFactor = (targetDist - curDist) / curDist * b_mass / totalMass;
-          let bPushFactor = (targetDist - curDist) / curDist * this_mass / totalMass;
-          let this_pxCol = -(b.px - this.px) * pushFactor;
-          let this_pyCol = -(b.py - this.py) * pushFactor;
-          let b_pxCol = -(this.px - b.px) * bPushFactor;
-          let b_pyCol = -(this.py - b.py) * bPushFactor;
-          if (!isNaN(this_pxCol) && !(isNaN(this_pyCol))) {
-              this.dpx.push(this_pxCol);
-              this.dpy.push(this_pyCol);
-          }
-          if (!isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
-              b.dpx.push(b_pxCol);
-              b.dpy.push(b_pyCol);
-          }
-          this_pxCol += this.px;
-          this_pyCol += this.py;
-          b_pxCol += b.px;
-          b_pyCol += b.py;
-          
-          sqDistance = sqdist(this.px, this.py, b.px, b.py);
-          vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
-          if (vDotp >= 0 && !isNaN(this_pxCol) && !(isNaN(this_pyCol)) && !isNaN(b_pxCol) && !(isNaN(b_pyCol))) {
-              let distance = dist(this_pxCol, this_pyCol, b_pxCol, b_pyCol);
-              let normalVelMag = (1 + bRestCoef) * vDotp / sqDistance / totalMass;
-              let normalVelX = normalVelMag * (b_pxCol - this_pxCol);
-              let normalVelY = normalVelMag * (b_pyCol - this_pyCol);
-              normalVelMag *= distance;
-              let vDotSide = ((this.vx - b.vx) * (this_pyCol - b_pyCol) + (this.vy - b.vy) * (b_pxCol - this_pxCol)) / distance;
-              let sideVel = vDotSide + (this.va * this.size + b.va * b.size) / 2;
-              let sideVelAng = sideVel / distance;
-              let sideVelX = sideVelAng * (this_pyCol - b_pyCol);
-              let sideVelY = sideVelAng * (b_pxCol - this_pxCol);
-              let frictionVelMag = (sideVel > 0 ? 1 : -1) * Math.min(Math.abs(sideVel) / (1 + 1 / this.moiCoef) / totalMass, Math.abs(bFrictCoef * normalVelMag));
-              let frictionVelAng = frictionVelMag / (sideVel == 0 ? Math.SQRT2 : sideVel);
-              let frictionVelX = frictionVelAng * (sideVel == 0 ? 1 : sideVelX);
-              let frictionVelY = frictionVelAng * (sideVel == 0 ? 1 : sideVelY);
-              
-              if (!isNaN(normalVelX + frictionVelX)) {
-                  this.dvx.push(-b_mass * (normalVelX + frictionVelX));
-                  b.dvx.push(this_mass * (normalVelX + frictionVelX));
-              }
-              if (!isNaN(normalVelY + frictionVelY)) {
-                  this.dvy.push(-b_mass * (normalVelY + frictionVelY));
-                  b.dvy.push(this_mass * (normalVelY + frictionVelY));
-              }
-              if (!isNaN(frictionVelMag)) {
-                  this.dva.push(-b_mass * 2 * frictionVelMag / this.size / this.moiCoef);
-                  b.dva.push(-this_mass * 2 * frictionVelMag / this.size / this.moiCoef);
-              }
-              b.collided.push(this);
-          }
-      }
+    let sqDistance = sqdist(this.px, this.py, b.px, b.py);
+    if ((this.size + b.size) * (this.size + b.size) > 4 * sqDistance) {
+      let totalMass = this.mass + b.mass;
+      let this_mass = (totalMass == 0 ? 1 : this.mass);
+      let b_mass = (totalMass == 0 ? 1 : b.mass);
+      totalMass = (totalMass == 0 ? 2 : totalMass);
+      let curDist = Math.sqrt(sqDistance);
+      let targetDist = /*(1 + eps) * */(this.size + b.size) / 2;
+      let pushFactor = (targetDist - curDist) / curDist * b_mass / totalMass;
+      let bPushFactor = (targetDist - curDist) / curDist * this_mass / totalMass;
+      this.dpx.push(-(b.px - this.px) * pushFactor);
+      this.dpy.push(-(b.py - this.py) * pushFactor);
+      b.dpx.push(-(this.px - b.px) * bPushFactor);
+      b.dpy.push(-(this.py - b.py) * bPushFactor);
+      
+      b.collided.push(this);
+    }
   }
   
   this.collideWall = function(w) {
@@ -2260,6 +2271,16 @@ function update(dt) {
           b.update5(dt);
       }
   }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update6(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update7(dt);
+      }
+  }
 }
 
 function show() {
@@ -2568,7 +2589,7 @@ function getWallList(x, y, size, color) {
     }
   }
   wList.push([[pox, x[pn], x[pn] + normalX * size], [poy, y[pn], y[pn] + normalY * size], wRestCoef, wFrictCoef, color]);
-  return getWalls(wList);
+  return new WallList(getWalls(wList));
 }
 
 function parametricWall(x, y, t0, t1, dt, size, color) {
@@ -2637,7 +2658,7 @@ function createCircleWall() {
 }
 
 function createWallList() {
-  walls.push(new WallList(getWallList(newX1, newY1, wallListSize(newX1, newY1, mouseX, mouseY), newColor)));
+  walls.push(getWallList(newX1, newY1, wallListSize(newX1, newY1, mouseX, mouseY), newColor));
   
   newX1 = null;
   newY1 = null;
@@ -2862,12 +2883,6 @@ document.onkeydown = function(event) {
                 }
             }
             break;
-        case "r":
-            if (balls.length == 0) {
-                walls = [];
-            }
-            balls = [];
-            dragObj = null;
         case "d":
             if (dragObj != null) {
                 if (dragObj.wallType == undefined) {
@@ -2904,6 +2919,18 @@ document.onkeydown = function(event) {
             break;
         case "p":
             paused = !paused;
+            break;
+        case "r":
+            if (balls.length == 0) {
+              walls = [];
+            } else {
+              if (dragObj != null) {
+                if (dragObj.wallType == undefined) {
+                  dragObj = null;
+                }
+              }
+              balls = [];
+            }
             break;
         case "t":
             if (dragType != "t") {
