@@ -1,5 +1,5 @@
 # Physics-Simulator
-https://sites.google.com/view/nat-stone-programming-projects/collisiongravitation-simulator?authuser=0
+https://sites.google.com/view/nat-stone-programming-projects/collisiongravitation-simulator
 
 This physics simulator is capable of simulating rigid collisions and gravitation, with related constants such as little g, big G, friction, restitution, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported.
 
