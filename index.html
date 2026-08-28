@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-    <title>Physics Simulator</title>
+    <title>Collision/Gravitation Simulator</title>
     <body>
         <style>
             body {
@@ -63,7 +63,7 @@ var upf = 20
 var speed = 1;
 const dragVTime = 1 / 10;
 const minDrag = 2;
-const wallListInc = 0.01;
+const listWallInc = 0.01;
 var mainPTime = 0;
 var rawMaindt = 0;
 var maindt = 0;
@@ -391,7 +391,7 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   ctx.stroke();*/
 }
 
-function drawWallList(wList, ctx = ctxMain) {
+function drawListWall(wList, ctx = ctxMain) {
   
   if (wList.length > 0) {
     if (ctx == ctxMain) {
@@ -1266,7 +1266,7 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     }
 }
 
-function WallList(wList) {
+function ListWall(wList) {
     this.wallType = "list";
     this.walls = wList;
     
@@ -1311,7 +1311,7 @@ function WallList(wList) {
     this.wFrict = this.walls[0].wFrict;
     
     this.show = function() {
-      drawWallList(this.walls);
+      drawListWall(this.walls);
     }
     
     this.containsPoint = function(x, y) {
@@ -1479,7 +1479,7 @@ function Preset(title, settings, objects, func) {
             walls.push(new CircleWall(o.x, o.y, o.r1, o.r2, o.a1, o.a2, o.wRest, o.wFrict, o.color));
             break;
           case "listWall":
-            walls.push(new WallList(o.wList));
+            walls.push(new ListWall(o.wList));
             break;
         }
       }
@@ -1814,13 +1814,16 @@ function setup() {
     new MenuButton(1, "presets", function() {
       menuType = "presets";
     }),
-    new MenuButton(2, "variables", function() {
-      menuType = "variables";
+    new MenuButton(2, "objects", function() {
+      menuType = "objects";
     }),
     new MenuButton(3, "defaults", function() {
       menuType = "defaults";
     }),
-    new MenuButton(4, "info", function() {
+    new MenuButton(4, "variables", function() {
+      menuType = "variables";
+    }),
+    new MenuButton(5, "info", function() {
       menuType = "info";
     }),
   ];
@@ -1835,6 +1838,8 @@ function setup() {
     new MenuNumber(2, "upf", true, () => (upf), function(upf1) {
       upf = upf1;
     }),
+    new MenuButton(3, "pause", togglePause),
+    new MenuButton(4, "update", doUpdate),
   ];
   
   menuValues.presets = [
@@ -2069,6 +2074,51 @@ function setup() {
     }))
   ];
   
+  menuValues.objects = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuButton(1, "ball", setBallMode),
+    new MenuButton(2, "rectangle wall", setRectWallMode),
+    new MenuButton(3, "triangle wall", setTriWallMode),
+    new MenuButton(4, "circle wall", setCircleWallMode),
+    new MenuButton(5, "custom wall", setListWallMode),
+    new MenuButton(6, "reset", resetObjects),
+  ];
+  
+  menuValues.defaults = [
+    new MenuButton(0, "main", function() {
+      menuType = "main";
+    }),
+    new MenuFloat(1, "density", true, () => (density), function(density1) {
+      density = density1;
+    }),
+    new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
+      moiCoef = moiCoef1;
+    }),
+    new MenuFloat(3, "w rest", true, () => (wRestCoef), function(wRestCoef1) {
+      wRestCoef = wRestCoef1;
+    }),
+    new MenuFloat(4, "w frict", true, () => (wFrictCoef), function(wFrictCoef1) {
+      wFrictCoef = wFrictCoef1;
+    }),
+    new MenuFloat(5, "drag 0", true, () => (dragCoef0), function(dragCoef01) {
+      dragCoef0 = dragCoef01;
+    }),
+    new MenuFloat(6, "drag 1", true, () => (dragCoef1), function(dragCoef11) {
+      dragCoef1 = dragCoef11;
+    }),
+    new MenuFloat(7, "drag 2", true, () => (dragCoef2), function(dragCoef21) {
+      dragCoef2 = dragCoef21;
+    }),
+    new MenuFloat(8, "dist inc", true, () => (distInc), function(distInc1) {
+      distInc = distInc1;
+    }),
+    new MenuNumber(9, "angle inc", true, () => (angInc), function(angInc1) {
+      angInc = angInc1;
+    })
+  ];
+  
   menuValues.variables = [
     new MenuButton(0, "main", function() {
       menuType = "main";
@@ -2088,47 +2138,14 @@ function setup() {
     new MenuFloat(5, "gy", true, () => (gy), function(gy1) {
       gy = gy1;
     }),
-    new MenuFloat(6, "bRest", true, () => (bRestCoef), function(bRestCoef1) {
+    new MenuFloat(6, "b rest", true, () => (bRestCoef), function(bRestCoef1) {
       bRestCoef = bRestCoef1;
     }),
-    new MenuFloat(7, "bFrict", true, () => (bFrictCoef), function(bFrictCoef1) {
+    new MenuFloat(7, "b frict", true, () => (bFrictCoef), function(bFrictCoef1) {
       bFrictCoef = bFrictCoef1;
     }),
     new MenuBoolean(8, "collide", true, () => (collide), function() {
       collide = !collide;
-    })
-  ];
-  
-  menuValues.defaults = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuFloat(1, "density", true, () => (density), function(density1) {
-      density = density1;
-    }),
-    new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
-      moiCoef = moiCoef1;
-    }),
-    new MenuFloat(3, "wRest", true, () => (wRestCoef), function(wRestCoef1) {
-      wRestCoef = wRestCoef1;
-    }),
-    new MenuFloat(4, "wFrict", true, () => (wFrictCoef), function(wFrictCoef1) {
-      wFrictCoef = wFrictCoef1;
-    }),
-    new MenuFloat(5, "drag0", true, () => (dragCoef0), function(dragCoef01) {
-      dragCoef0 = dragCoef01;
-    }),
-    new MenuFloat(6, "drag1", true, () => (dragCoef1), function(dragCoef11) {
-      dragCoef1 = dragCoef11;
-    }),
-    new MenuFloat(7, "drag2", true, () => (dragCoef2), function(dragCoef21) {
-      dragCoef2 = dragCoef21;
-    }),
-    new MenuFloat(8, "distInc", true, () => (distInc), function(distInc1) {
-      distInc = distInc1;
-    }),
-    new MenuNumber(9, "angInc", true, () => (angInc), function(angInc1) {
-      angInc = angInc1;
     })
   ];
   
@@ -2194,32 +2211,34 @@ function setup() {
     new MenuFloat(7, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
       dragObj.setMOICoef(moiCoef);
     }),
-    new MenuFloat(8, "drag0", true, () => (dragObj.drag0), function(drag01) {
+    new MenuFloat(8, "drag 0", true, () => (dragObj.drag0), function(drag01) {
       dragObj.drag0 = drag01;
     }),
-    new MenuFloat(9, "drag1", true, () => (dragObj.drag1), function(drag11) {
+    new MenuFloat(9, "drag 1", true, () => (dragObj.drag1), function(drag11) {
       dragObj.drag1 = drag11;
     }),
-    new MenuFloat(10, "drag2", true, () => (dragObj.drag2), function(drag21) {
+    new MenuFloat(10, "drag 2", true, () => (dragObj.drag2), function(drag21) {
       dragObj.drag2 = drag21;
-    })
+    }),
+    new MenuButton(11, "delete", deleteDragObj),
   ];
   
   wallValues = [
-    new MenuFloat(2, "wRest", true, () => (dragObj.wRest), function(wRest) {
+    new MenuFloat(2, "w rest", true, () => (dragObj.wRest), function(wRest) {
       if (dragObj.wallType == "list") {
         dragObj.setWRest(wRest);
       } else {
         dragObj.wRest = wRest;
       }
     }),
-    new MenuFloat(3, "wFrict", true, () => (dragObj.wFrict), function(wFrict) {
+    new MenuFloat(3, "w frict", true, () => (dragObj.wFrict), function(wFrict) {
       if (dragObj.wallType == "list") {
         dragObj.setWFrict(wFrict);
       } else {
         dragObj.wFrict = wFrict;
       }
     }),
+    new MenuButton(4, "delete", deleteDragObj),
   ];
   
   setMenuHeight();
@@ -2323,7 +2342,7 @@ function show() {
               drawCircleWall(newX1, newY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
               break;
           case "l":
-              drawWallList(getWallList(newX1, newY1, wallListSize(newX1, newY1, mouseX, mouseY), newColor));
+              drawListWall(getListWall(newX1, newY1, listWallSize(newX1, newY1, mouseX, mouseY), newColor).walls);
               break;
       }
   } else if (newX1 != null) {
@@ -2418,7 +2437,7 @@ function showMenu() {
             }
             wList.push([x, y, wRestCoef, wFrictCoef, w.color]);
           }
-          drawWallList(getWalls(wList), ctxMenu);
+          drawListWall(getWalls(wList), ctxMenu);
           break;
       }
     }
@@ -2544,14 +2563,14 @@ show();
 showMenu();
 requestAnimationFrame(frame);
 
-function wallListSize(x, y, mx, my) {
+function listWallSize(x, y, mx, my) {
     //////use distance
     let pn = Math.floor((x.length - 1) * 9 / 10);
                 //document.getElementById("p").innerHTML += ((mx - x[pn]) * (y[pn] - y[x.length - 1]) + (my - y[pn]) * (x[x.length - 1] - x[pn])) / dist(x[pn], y[pn], x[x.length - 1], y[x.length - 1]);
     return ((mx - x[pn]) * (y[pn] - y[x.length - 1]) + (my - y[pn]) * (x[x.length - 1] - x[pn])) / dist(x[pn], y[pn], x[x.length - 1], y[x.length - 1]);
 }
 
-function getWallList(x, y, size, color) {
+function getListWall(x, y, size, color) {
   let wList = [];
   let pn = 0;
   let distance;
@@ -2559,7 +2578,7 @@ function getWallList(x, y, size, color) {
   let n1;
   for (let n = 1; n < x.length; n++) {
     distance = dist(x[0], y[0], x[n], y[n]);
-    if (distance >= gameHeight * wallListInc) {
+    if (distance >= gameHeight * listWallInc) {
       n1 = n;
       break;
     }
@@ -2574,7 +2593,7 @@ function getWallList(x, y, size, color) {
   let oy;
   for (let n = n1; n < x.length; n++) {
     distance = dist(x[pn], y[pn], x[n], y[n]);
-    if (distance >= gameHeight * wallListInc || n == x.length - 1) {
+    if (distance >= gameHeight * listWallInc || n == x.length - 1) {
       normalX = (y[pn] - y[n]) / distance;
       normalY = (x[n] - x[pn]) / distance;
       ox = (x[pn] + x[n]) / 2 + normalX * size;
@@ -2589,7 +2608,7 @@ function getWallList(x, y, size, color) {
     }
   }
   wList.push([[pox, x[pn], x[pn] + normalX * size], [poy, y[pn], y[pn] + normalY * size], wRestCoef, wFrictCoef, color]);
-  return new WallList(getWalls(wList));
+  return new ListWall(getWalls(wList));
 }
 
 function parametricWall(x, y, t0, t1, dt, size, color) {
@@ -2599,7 +2618,7 @@ function parametricWall(x, y, t0, t1, dt, size, color) {
       xl.push(x(t));
       yl.push(y(t));
   }
-  return getWallList(xl, yl, size, color);
+  return getListWall(xl, yl, size, color);
 }
 
 function getWalls(l) {
@@ -2657,8 +2676,8 @@ function createCircleWall() {
     newY2 = null;
 }
 
-function createWallList() {
-  walls.push(getWallList(newX1, newY1, wallListSize(newX1, newY1, mouseX, mouseY), newColor));
+function createListWall() {
+  walls.push(getListWall(newX1, newY1, listWallSize(newX1, newY1, mouseX, mouseY), newColor));
   
   newX1 = null;
   newY1 = null;
@@ -2725,7 +2744,7 @@ function checkClick() {
                 break;
             case "l":
                 if (dist(newX1[0], newY1[0], mouseX, mouseY) >= minDrag / scaleFactor) {
-                    createWallList();
+                    createListWall();
                 }
                 break;
         }
@@ -2774,6 +2793,112 @@ function updateMenuObjHover() {
       let sizeScale = dragObj.offsetSize / menu.width / 3 * 5 / (menuObjHovered ? 1.08 : 1);
       menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * sizeScale + dragObj.centerX + dragObj.offsetX, (menu.width * 2 / 5 - clientY) * sizeScale + dragObj.centerY + dragObj.offsetY);
     }
+  }
+}
+
+function deleteDragObj() {
+  if (dragObj != null) {
+      if (dragObj.wallType == undefined) {
+          balls.splice(balls.indexOf(dragObj), 1);
+      } else {
+          walls.splice(walls.indexOf(dragObj), 1);
+      }
+      dragObj = null;
+  } else if (newX1 != null) {
+      newX1 = null;
+      newY1 = null;
+      newX2 = null;
+      newY2 = null;
+      newA = null;
+  }
+}
+
+function togglePause() {
+  paused = !paused;
+}
+
+function doUpdate() {
+  let dt = speed / fps / upf;
+  if (dt > 0 && dt < 2 * speed / fps) {
+    for (let n = 0; n < upf; n++) {
+      update(dt);
+    }
+  }
+}
+
+function setBallMode() {
+  if (dragType != "b") {
+      dragType = "b";
+      if (isNaN(newX1)) {
+          newX1 = null;
+          newY1 = null;
+      }
+      newX2 = null;
+      newY2 = null;
+      newA = null;
+  }
+}
+
+function setRectWallMode() {
+  if (dragType != "w") {
+      dragType = "w";
+      if (isNaN(newX1)) {
+          newX1 = null;
+          newY1 = null;
+          newX2 = null;
+          newY2 = null;
+          newA = null;
+      }
+  }
+}
+
+function setTriWallMode() {
+  if (dragType != "t") {
+      dragType = "t";
+      if (isNaN(newX1)) {
+          newX1 = null;
+          newY1 = null;
+          newX2 = null;
+          newY2 = null;
+          newA = null;
+      }
+  }
+}
+
+function setCircleWallMode() {
+  if (dragType != "c") {
+      dragType = "c";
+      if (isNaN(newX1)) {
+          newX1 = null;
+          newY1 = null;
+          newX2 = null;
+          newY2 = null;
+          newA = null;
+      }
+  }
+}
+
+function setListWallMode() {
+  if (dragType != "l") {
+      dragType = "l";
+      newX1 = null;
+      newY1 = null;
+      newX2 = null;
+      newY2 = null;
+      newA = null;
+  }
+}
+
+function resetObjects() {
+  if (balls.length == 0) {
+    walls = [];
+  } else {
+    if (dragObj != null) {
+      if (dragObj.wallType == undefined) {
+        dragObj = null;
+      }
+    }
+    balls = [];
   }
 }
 
@@ -2860,54 +2985,16 @@ document.onkeydown = function(event) {
             }
             break;
         case "b":
-            if (dragType != "b") {
-                dragType = "b";
-                if (isNaN(newX1)) {
-                    newX1 = null;
-                    newY1 = null;
-                }
-                newX2 = null;
-                newY2 = null;
-                newA = null;
-            }
+            setBallMode();
             break;
         case "c":
-            if (dragType != "c") {
-                dragType = "c";
-                if (isNaN(newX1)) {
-                    newX1 = null;
-                    newY1 = null;
-                    newX2 = null;
-                    newY2 = null;
-                    newA = null;
-                }
-            }
+            setCircleWallMode();
             break;
         case "d":
-            if (dragObj != null) {
-                if (dragObj.wallType == undefined) {
-                    balls.splice(balls.indexOf(dragObj), 1);
-                } else {
-                    walls.splice(walls.indexOf(dragObj), 1);
-                }
-                dragObj = null;
-            } else if (newX1 != null) {
-                newX1 = null;
-                newY1 = null;
-                newX2 = null;
-                newY2 = null;
-                newA = null;
-            }
+            deleteDragObj();
             break;
         case "l":
-            if (dragType != "l") {
-                dragType = "l";
-                newX1 = null;
-                newY1 = null;
-                newX2 = null;
-                newY2 = null;
-                newA = null;
-            }
+            setListWallMode();
             break;
         case "m":
             if (dragMode == undefined) {
@@ -2918,51 +3005,19 @@ document.onkeydown = function(event) {
             }
             break;
         case "p":
-            paused = !paused;
+            togglePause();
             break;
         case "r":
-            if (balls.length == 0) {
-              walls = [];
-            } else {
-              if (dragObj != null) {
-                if (dragObj.wallType == undefined) {
-                  dragObj = null;
-                }
-              }
-              balls = [];
-            }
+            resetObjects();
             break;
         case "t":
-            if (dragType != "t") {
-                dragType = "t";
-                if (isNaN(newX1)) {
-                    newX1 = null;
-                    newY1 = null;
-                    newX2 = null;
-                    newY2 = null;
-                    newA = null;
-                }
-            }
+            setTriWallMode();
             break;
         case "u":
-            let dt = speed / fps / upf;
-            if (dt > 0 && dt < 2 * speed / fps) {
-              for (let n = 0; n < upf; n++) {
-                update(dt);
-              }
-            }
+            doUpdate();
             break;
         case "w":
-            if (dragType != "w") {
-                dragType = "w";
-                if (isNaN(newX1)) {
-                    newX1 = null;
-                    newY1 = null;
-                    newX2 = null;
-                    newY2 = null;
-                    newA = null;
-                }
-            }
+            setRectWallMode();
             break;
     }
   }
