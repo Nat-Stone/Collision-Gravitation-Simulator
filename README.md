@@ -22,6 +22,7 @@ Click menu items to change their value.
   Press backspace to delete.
   Press enter to confirm.
   Press escape to cancel.
+  While holding "control", click a value to copy it.
 Click to create new objects depending on chosen mode.
   Press "b" for ball mode.
   Press "w" for rectangular wall mode.
@@ -54,11 +55,13 @@ Click a wall to edit its variables.
   "wRest" is the coefficient of restitution between the wall and balls.
   "wFrict" is the coefficient of friction between the wall and balls.
   Click "delete" to delete the wall.
-Click "settings" to edit performance settings.
+Click "timing" to edit performance/timing settings.
   "fps" is the maximum frames per second, which is also capped by browser refresh rate (usually 60).
   "upf" is the maximum number of simulation updates per frame.
   Click "pause" to pause the simulation.
   Click "update" to update one frame.
+  "time" is the time the simulator has run for (or since last change).
+  "end time" is the time at which the simulator will stop, if non-negative.
 Click "presets" to select simulation presets.
   Click "save" to save the current simulation state as a preset.
   "empty" is empty with no gravity.
@@ -95,6 +98,8 @@ Click "variables" to edit simulation variables.
   "gy" is the vertical component of the uniform gravitation force.
   "b rest" is the coefficient of restitution between balls.
   "b frict" is the friction coefficient between balls.
+  "wind vx" is the horizontal component of wind velocity, which drag is relative to.
+  "wind vy" is the vertical component of wind velocity, which drag is relative to.
   "collide" is whether or not balls collide with other balls.
 Click "info" to view the simulation information.
   "px" is the total horizontal momentum of balls in the simulation.
