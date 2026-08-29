@@ -39,7 +39,6 @@
 notes:
 this version has all instances of "*****" replaced with "but" + "t"
 */
-
 const widthFactor = 0.8;
 
 const main = document.getElementById("main");
@@ -71,6 +70,8 @@ var distOffsetX = 0;
 var distOffsetY = 0;
 
 var paused = false;
+var gameTime = 0;
+var endTime = -1;
 var clientX = null;
 var clientY = null;
 var mouseX = null;
@@ -106,6 +107,8 @@ var gx = 0;
 var gy = 0;
 var bRestCoef = 0.99;
 var bFrictCoef = 0.2;
+var windVX = 0;
+var windVY = 0;
 var collide = true;
 var density = 1;
 var moiCoef = 1/2;
@@ -125,9 +128,6 @@ var menuType = "main";
 var menuValues = {};
 var ballValues = [];
 var wallValues = [];
-
-//var utime = 0;
-//var unum = 0;
 
 function updateView() {
   if (window.innerWidth != pWidth || window.innerHeight != pHeight) {
@@ -673,9 +673,11 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   }
   
   this.drag = function(dt) {
-    if ((this.vx != 0 || this.vy != 0) && (this.drag0 != 0 || this.drag1 != 0 || this.drag2 != 0)) {
-      let vx = this.vx + this.ax * dt;
-      let vy = this.vy + this.ay * dt;
+    let rvx = this.vx - windVX;
+    let rvy = this.vy - windVY;
+    if ((rvx != 0 || rvy != 0) && (this.drag0 != 0 || this.drag1 != 0 || this.drag2 != 0)) {
+      let vx = rvx + this.ax * dt;
+      let vy = rvy + this.ay * dt;
       let vel = Math.sqrt(vx * vx + vy * vy);
       let mag = (this.drag0 / vel + this.drag1 + this.drag2 * vel) * dt / this.mass;
       if (mag < 1) {
@@ -1386,6 +1388,7 @@ function Preset(title, settings, objects, func) {
   
   this.set = function() {
     
+    gameTime = 0;
     dragObj = null;
     if (newX1 != null) {
       newX1 = null;
@@ -1397,6 +1400,9 @@ function Preset(title, settings, objects, func) {
     balls = [];
     walls = [];
     
+    if (settings.endTime != undefined) {
+      endTime = settings.endTime;
+    }
     if (settings.speed != undefined) {
       speed = settings.speed;
     }
@@ -1412,11 +1418,17 @@ function Preset(title, settings, objects, func) {
     if (settings.gy != undefined) {
       gy = settings.gy;
     }
+    if (settings.bRestCoef != undefined) {
+      bRestCoef = settings.bRestCoef;
+    }
     if (settings.bFrictCoef != undefined) {
       bFrictCoef = settings.bFrictCoef;
     }
-    if (settings.bRestCoef != undefined) {
-      bRestCoef = settings.bRestCoef;
+    if (settings.windVX != undefined) {
+      windVX = settings.windVX;
+    }
+    if (settings.windVY != undefined) {
+      windVY = settings.windVY;
     }
     if (settings.collide != undefined) {
       collide = settings.collide;
@@ -1428,11 +1440,11 @@ function Preset(title, settings, objects, func) {
     if (settings.moiCoef != undefined) {
       moiCoef = settings.moiCoef;
     }
-    if (settings.wFrictCoef != undefined) {
-      wFrictCoef = settings.wFrictCoef;
-    }
     if (settings.wRestCoef != undefined) {
       wRestCoef = settings.wRestCoef;
+    }
+    if (settings.wFrictCoef != undefined) {
+      wFrictCoef = settings.wFrictCoef;
     }
     if (settings.dragCoef0 != undefined) {
       dragCoef0 = settings.dragCoef0;
@@ -1561,7 +1573,7 @@ function MenuPreset(n, clickable, preset) {
   }
   
   this.updateHover = function(x, y) {
-    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.updateValue = function(char) {
@@ -1606,8 +1618,8 @@ function MenuBoolean(n, title, clickable, get, click) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.clickable && this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.clickable && this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1620,17 +1632,22 @@ function MenuBoolean(n, title, clickable, get, click) {
     ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
-  this.get = () => (title + ": " + (this.rawGet() ? "on" : "off"));
+  this.getValue = () => this.rawGet() ? "on" : "off";
+  
+  this.get = () => (title + ": " + this.getValue());
   
   this.updateHover = function(x, y) {
-    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
-    if (this.clickable) {
+    if (pressedKeys.includes("control")) {
+      navigator.clipboard.writeText(this.getValue());
+    } else if (this.clickable) {
       this.rawClick();
     }
   }
+  
 }
 
 function MenuNumber(n, title, clickable, get, set) {
@@ -1648,8 +1665,8 @@ function MenuNumber(n, title, clickable, get, set) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.clickable && this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.clickable && this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1662,14 +1679,18 @@ function MenuNumber(n, title, clickable, get, set) {
     ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
-  this.get = () => (title + ": " + (this.clicked ? this.value : this.rawGet()));
+  this.getValue = () => this.clicked ? this.value : this.rawGet();
+  
+  this.get = () => (title + ": " + this.getValue());
   
   this.updateHover = function(x, y) {
-    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
-    if (this.clickable) {
+    if (pressedKeys.includes("control")) {
+      navigator.clipboard.writeText(this.getValue());
+    } else if (this.clickable) {
       this.clicked = true;
       this.value = 0;
     }
@@ -1693,6 +1714,7 @@ function MenuNumber(n, title, clickable, get, set) {
     this.rawSet(this.value);
     this.clicked = false;
   }
+  
 }
 
 function MenuFloat(n, title, clickable, get, set) {
@@ -1715,8 +1737,8 @@ function MenuFloat(n, title, clickable, get, set) {
   
   this.x = () => menu.width / 2;
   this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
-  this.sx = () => menu.width * 4 / 5 * (this.hovered ? this.hoverFactor : 1)
-  this.sy = () => menu.width / 4 * (this.hovered ? this.hoverFactor : 1)
+  this.sx = () => menu.width * 4 / 5 * (this.clickable && this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.clickable && this.hovered ? this.hoverFactor : 1)
   
   this.show = function() {
     ctxMenu.fillStyle = "orange";
@@ -1729,14 +1751,18 @@ function MenuFloat(n, title, clickable, get, set) {
     ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
-  this.get = () => (title + ": " + (truncate(this.clicked ? this.sign * this.value * 10 ** (this.eSign * this.eValue) : this.rawGet())));
+  this.getValue = () => this.clicked ? this.sign * this.value * 10 ** (this.eSign * this.eValue) : this.rawGet();
+  
+  this.get = () => (title + ": " + (truncate(this.getValue())));
   
   this.updateHover = function(x, y) {
-    this.hovered = this.clickable && this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
   }
   
   this.click = function() {
-    if (this.clickable) {
+    if (pressedKeys.includes("control")) {
+      navigator.clipboard.writeText(this.getValue());
+    } else if (this.clickable) {
       this.clicked = true;
       this.value = 0;
       this.digit = 0;
@@ -1803,13 +1829,14 @@ function MenuFloat(n, title, clickable, get, set) {
     this.rawSet(this.sign * this.value * 10 ** (this.eSign * this.eValue));
     this.clicked = false;
   }
+  
 }
 
 function setup() {
   
   menuValues.main = [
-    new MenuButton(0, "settings", function() {
-      menuType = "settings";
+    new MenuButton(0, "timing", function() {
+      menuType = "timing";
     }),
     new MenuButton(1, "presets", function() {
       menuType = "presets";
@@ -1828,7 +1855,7 @@ function setup() {
     }),
   ];
   
-  menuValues.settings = [
+  menuValues.timing = [
     new MenuButton(0, "main", function() {
       menuType = "main";
     }),
@@ -1838,8 +1865,14 @@ function setup() {
     new MenuNumber(2, "upf", true, () => (upf), function(upf1) {
       upf = upf1;
     }),
-    new MenuButton(3, "pause", togglePause),
+    new MenuBoolean(3, "pause", true, () => (paused), togglePause),
     new MenuButton(4, "update", doUpdate),
+    new MenuFloat(5, "time", true, () => (gameTime), function(t) {
+      gameTime = t;
+    }),
+    new MenuFloat(6, "end time", true, () => (endTime), function(t) {
+      endTime = t;
+    }),
   ];
   
   menuValues.presets = [
@@ -1933,6 +1966,7 @@ function setup() {
       }
       
       menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
+        "endTime": endTime,
         "speed": speed,
         "height": gameHeight,
         "screenX": screenX,
@@ -1944,6 +1978,8 @@ function setup() {
         "gy": gy,
         "bRestCoef": bRestCoef,
         "bFrictCoef": bFrictCoef,
+        "windVX": windVX,
+        "windVY": windVY,
         "collide": collide,
         "density": density,
         "moiCoef": moiCoef,
@@ -1957,6 +1993,7 @@ function setup() {
       }, objects)));
     }),
     new MenuPreset(2, true, new Preset("empty", {
+      "endTime": -1,
       "speed": 1,
       "height": 10,
       "x": 0,
@@ -1966,6 +2003,8 @@ function setup() {
       "gy": 0,
       "bRestCoef": 0.99,
       "bFrictCoef": 0.2,
+      "windVX": 0,
+      "windVY": 0,
       "collide": true,
       "density": 1,
       "moiCoef": 1/2,
@@ -1978,6 +2017,7 @@ function setup() {
       "angInc": 15
     })),
     new MenuPreset(3, true, new Preset("small", {
+      "endTime": -1,
       "speed": 1,
       "height": 10,
       "x": 0,
@@ -1987,6 +2027,8 @@ function setup() {
       "gy": -9.8,
       "bRestCoef": 0.99,
       "bFrictCoef": 0.2,
+      "windVX": 0,
+      "windVY": 0,
       "collide": true,
       "density": 1,
       "moiCoef": 1/2,
@@ -1999,6 +2041,7 @@ function setup() {
       "angInc": 15
     })),
     new MenuPreset(4, true, new Preset("large", {
+      "endTime": -1,
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
       "x": 0,
@@ -2008,6 +2051,8 @@ function setup() {
       "gy": 0,
       "bRestCoef": 0.99,
       "bFrictCoef": 0.2,
+      "windVX": 0,
+      "windVY": 0,
       "collide": true,
       "density": 10 ** -2,
       "moiCoef": 1/2,
@@ -2020,6 +2065,7 @@ function setup() {
       "angInc": 15
     })),
     new MenuPreset(5, true, new Preset("box", {
+      "endTime": -1,
       "speed": 1,
       "height": 12,
       "x": 0,
@@ -2029,6 +2075,8 @@ function setup() {
       "gy": -9.8,
       "bRestCoef": 0.99,
       "bFrictCoef": 0.2,
+      "windVX": 0,
+      "windVY": 0,
       "collide": true,
       "density": 1,
       "moiCoef": 1/2,
@@ -2049,6 +2097,7 @@ function setup() {
       walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
     })),
     new MenuPreset(6, true, new Preset("orbit", {
+      "endTime": -1,
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
       "x": 0,
@@ -2058,6 +2107,8 @@ function setup() {
       "gy": 0,
       "bRestCoef": 0.99,
       "bFrictCoef": 0.2,
+      "windVX": 0,
+      "windVY": 0,
       "collide": true,
       "density": 10 ** -2,
       "moiCoef": 1/2,
@@ -2144,7 +2195,13 @@ function setup() {
     new MenuFloat(7, "b frict", true, () => (bFrictCoef), function(bFrictCoef1) {
       bFrictCoef = bFrictCoef1;
     }),
-    new MenuBoolean(8, "collide", true, () => (collide), function() {
+    new MenuFloat(8, "wind vx", true, () => (windVX), function(vx) {
+      windVX = vx;
+    }),
+    new MenuFloat(9, "wind vy", true, () => (windVY), function(vy) {
+      windVY = vy;
+    }),
+    new MenuBoolean(10, "collide", true, () => (collide), function() {
       collide = !collide;
     })
   ];
@@ -2249,15 +2306,15 @@ function start() {
   
 }
 
-function update(dt) {
+function update(dt, end = true) {
   
-  /*unum += 1;
-  if (Date.now() >= utime + 1000) {
-    document.getElementById("p").innerHTML = "djhgdsfihgfdidsgfsgddsfsdihgdsfhh | " + unum;
-    utime = Date.now();
-  document.getElementById("q").innerHTML = dt;
-    unum = 0;
-  }*/
+  if (end && endTime >= 0 && gameTime + dt > endTime) {
+    if (gameTime == endTime) return;
+    dt = endTime - gameTime;
+    if (gameTime < endTime) gameTime = endTime;
+  } else {
+    gameTime += dt;
+  }
   
   if (dragObj != null && dragMode == true) {
     if (dragObj.wallType == undefined) {
@@ -2821,7 +2878,7 @@ function doUpdate() {
   let dt = speed / fps / upf;
   if (dt > 0 && dt < 2 * speed / fps) {
     for (let n = 0; n < upf; n++) {
-      update(dt);
+      update(dt, false);
     }
   }
 }
