@@ -26,12 +26,12 @@
           <canvas id="menu"></canvas>
         </div>
         
-        <!--
         <p id="p1"></p>
         <p id="p2"></p>
         <p id="p3"></p>
         <p id="p4"></p>
         <p id="p5"></p>
+        <!--
         -->
         <script>
           
@@ -126,8 +126,6 @@ var menuObjHovered = false;
 
 var menuType = "main";
 var menuValues = {};
-var ballValues = [];
-var wallValues = [];
 
 function updateView() {
   if (window.innerWidth != pWidth || window.innerHeight != pHeight) {
@@ -218,7 +216,7 @@ function setMenuHeight() {
 }
 
 function getMenuValues() {
-  return (dragObj == null ? menuValues[menuType] : (dragObj.wallType == undefined ? ballValues : wallValues));
+  return menuValues[menuType];
 }
 
 function dist(x1, y1, x2, y2) {
@@ -311,6 +309,27 @@ function truncate(num) {
   return Math.round(num / 10 ** (zeros - 2)) / 100 + "e" + (zeros > 0 ? "+" : "") + zeros;
 }
 
+function stringifyColor(color) {
+  if (color.includes(",")) {
+    color.replace(" ", "");
+    let text = "";
+    for (let c of color.substring(4, color.length - 1).split(",")) {
+      text += "," + Math.round(c);
+    }
+    return text.substring(1);
+  } else {
+    return color;
+  }
+}
+
+function formatColor(color) {
+  if (color.includes(",")) {
+    return "rgb(" + color.replace(" ", "") + ")";
+  } else {
+    return color;
+  }
+}
+
 function drawBall(px, py, pa, size, color, ctx = ctxMain) {
   if (ctx == ctxMain) {
     scale();
@@ -373,9 +392,6 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   } else {
     ctx.resetTransform();
   }
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.abs(r2 - r1);
-  ctx.lineCap = "but" + "t";
   
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -383,12 +399,15 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   ctx.arc(x, y, r2, a2, a1, true);
   ctx.fill();
   
-  /*ctx.strokeStyle = color;
-  ctx.lineWidth = Math.abs(r2 - r1);
-  ctx.lineCap = "but" + "t";
-  ctx.beginPath();
-  ctx.arc(x, y, (r1 + r2) / 2, a1, a2);
-  ctx.stroke();*/
+  //ctx.strokeStyle = color;
+  //ctx.lineWidth = Math.abs(r2 - r1);
+  //ctx.lineCap = "but" + "t";
+  //ctx.strokeStyle = color;
+  //ctx.lineWidth = Math.abs(r2 - r1);
+  //ctx.lineCap = "but" + "t";
+  //ctx.beginPath();
+  //ctx.arc(x, y, (r1 + r2) / 2, a1, a2);
+  //ctx.stroke();
 }
 
 function drawListWall(wList, ctx = ctxMain) {
@@ -1043,19 +1062,23 @@ function RectWall(x1, y1, x2, y2, size, wRest, wFrict, color) {
     this.wFrict = wFrict;
     this.color = color;
     
-    this.size1 = Math.abs(size);
-    this.size2 = dist(this.x1, this.y1, this.x2, this.y2);
-    this.normalX1 = (this.y1 - this.y2) / this.size2;
-    this.normalY1 = (this.x2 - this.x1) / this.size2;
-    this.normalX2 = this.normalY1;
-    this.normalY2 = -this.normalX1;
-    this.centerX = (this.x1 + this.x2 + this.normalX1 * this.size) / 2;
-    this.centerY = (this.y1 + this.y2 + this.normalY1 * this.size) / 2;
-    this.angle = angle(this.x1, this.y1, this.x2, this.y2);
-  
-    this.offsetX = 0;
-    this.offsetY = 0;
-    this.offsetSize = Math.max(Math.abs(this.x2 - this.x1) + Math.abs(this.size1 * this.normalX1), Math.abs(this.y2 - this.y1) + Math.abs(this.size1 * this.normalY1));
+    this.setDim = function() {
+      this.size1 = Math.abs(this.size);
+      this.size2 = dist(this.x1, this.y1, this.x2, this.y2);
+      this.normalX1 = (this.y1 - this.y2) / this.size2;
+      this.normalY1 = (this.x2 - this.x1) / this.size2;
+      this.normalX2 = this.normalY1;
+      this.normalY2 = -this.normalX1;
+      this.centerX = (this.x1 + this.x2 + this.normalX1 * this.size) / 2;
+      this.centerY = (this.y1 + this.y2 + this.normalY1 * this.size) / 2;
+      this.angle = angle(this.x1, this.y1, this.x2, this.y2);
+      
+      this.offsetX = 0;
+      this.offsetY = 0;
+      this.offsetSize = Math.max(Math.abs(this.x2 - this.x1) + Math.abs(this.size1 * this.normalX1), Math.abs(this.y2 - this.y1) + Math.abs(this.size1 * this.normalY1));
+    }
+    
+    this.setDim();
     
     this.show = function() {
         drawRectWall(this.x1, this.y1, this.x2, this.y2, this.size, this.color);
@@ -1104,32 +1127,36 @@ function TriWall(x, y, wRest, wFrict, color) {
   this.wFrict = wFrict;
   this.color = color;
   
-  this.num = x.length;
-  this.centerX = average(this.x);
-  this.centerY = average(this.y);
-  this.angle = angle(this.centerX, this.centerY, this.x[0], this.y[0]);
-  
-  this.offsetX = (Math.max(...this.x) + Math.min(...this.x)) / 2 - this.centerX;
-  this.offsetY = (Math.max(...this.y) + Math.min(...this.y)) / 2 - this.centerY;
-  this.offsetSize = Math.max(Math.max(...this.x) - Math.min(...this.x), Math.max(...this.y) - Math.min(...this.y));
-  
-  this.dir = ((this.x[1] - this.x[0]) * (this.y[2] - this.y[1]) - (this.x[2] - this.x[1]) * (this.y[1] - this.y[0]) > 0 ? 1 : -1);
-  this.size = [];
-  this.midX = [];
-  this.midY = [];
-  this.sideX = [];
-  this.sideY = [];
-  this.normalX = [];
-  this.normalY = [];
-  for (let n = 0; n < this.num; n++) {
-    this.size.push(dist(this.x[n], this.y[n], this.x[(n + 1) % this.num], this.y[(n + 1) % this.num]));
-    this.midX.push((this.x[n] + this.x[(n + 1) % this.num]) / 2);
-    this.midY.push((this.y[n] + this.y[(n + 1) % this.num]) / 2);
-    this.sideX.push(this.dir * (this.x[n] - this.x[(n + 1) % this.num]) / this.size[n]);
-    this.sideY.push(this.dir * (this.y[n] - this.y[(n + 1) % this.num]) / this.size[n]);
-    this.normalX.push(-this.sideY[n]);
-    this.normalY.push(this.sideX[n]);
+  this.setDim = function() {
+    this.num = x.length;
+    this.centerX = average(this.x);
+    this.centerY = average(this.y);
+    this.angle = angle(this.centerX, this.centerY, this.x[0], this.y[0]);
+    
+    this.offsetX = (Math.max(...this.x) + Math.min(...this.x)) / 2 - this.centerX;
+    this.offsetY = (Math.max(...this.y) + Math.min(...this.y)) / 2 - this.centerY;
+    this.offsetSize = Math.max(Math.max(...this.x) - Math.min(...this.x), Math.max(...this.y) - Math.min(...this.y));
+    
+    this.dir = ((this.x[1] - this.x[0]) * (this.y[2] - this.y[1]) - (this.x[2] - this.x[1]) * (this.y[1] - this.y[0]) > 0 ? 1 : -1);
+    this.size = [];
+    this.midX = [];
+    this.midY = [];
+    this.sideX = [];
+    this.sideY = [];
+    this.normalX = [];
+    this.normalY = [];
+    for (let n = 0; n < this.num; n++) {
+      this.size.push(dist(this.x[n], this.y[n], this.x[(n + 1) % this.num], this.y[(n + 1) % this.num]));
+      this.midX.push((this.x[n] + this.x[(n + 1) % this.num]) / 2);
+      this.midY.push((this.y[n] + this.y[(n + 1) % this.num]) / 2);
+      this.sideX.push(this.dir * (this.x[n] - this.x[(n + 1) % this.num]) / this.size[n]);
+      this.sideY.push(this.dir * (this.y[n] - this.y[(n + 1) % this.num]) / this.size[n]);
+      this.normalX.push(-this.sideY[n]);
+      this.normalY.push(this.sideX[n]);
+    }
   }
+  
+  this.setDim();
   
   this.show = function() {
     drawTriWall(this.x, this.y, this.color);
@@ -1193,33 +1220,44 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     
     this.x = x;
     this.y = y;
-    this.r1 = Math.min(r1, r2);
-    this.r2 = Math.max(r1, r2);
-    this.a1 = Math.min(a1, a2);
-    this.a2 = Math.max(a1, a2);
+    this.radius1 = r1;
+    this.radius2 = r2;
+    this.angle1 = a1;
+    this.angle2 = a2;
     this.wRest = wRest;
     this.wFrict = wFrict;
     this.color = color;
     
-    this.ax1 = Math.cos(this.a1);
-    this.ay1 = Math.sin(this.a1);
-    this.ax2 = Math.cos(this.a2);
-    this.ay2 = Math.sin(this.a2);
-    this.normalX1 = this.ay1;
-    this.normalY1 = -this.ax1;
-    this.normalX2 = -this.ay2;
-    this.normalY2 = this.ax2;
-    this.centerX = x;
-    this.centerY = y;
-    this.angle = this.a1;
+    this.setDim = function() {
+      this.angle1 %= Math.PI * 2;
+      this.angle2 %= Math.PI * 2;
+      this.r1 = Math.min(this.radius1, this.radius2);
+      this.r2 = Math.max(this.radius1, this.radius2);
+      this.a1 = Math.min(this.angle1, this.angle2);
+      this.a2 = Math.max(this.angle1, this.angle2);
+      
+      this.ax1 = Math.cos(this.a1);
+      this.ay1 = Math.sin(this.a1);
+      this.ax2 = Math.cos(this.a2);
+      this.ay2 = Math.sin(this.a2);
+      this.normalX1 = this.ay1;
+      this.normalY1 = -this.ax1;
+      this.normalX2 = -this.ay2;
+      this.normalY2 = this.ax2;
+      this.centerX = this.x;
+      this.centerY = this.y;
+      this.angle = this.a1;
+      
+      let maxX = (Math.ceil(this.a1 / Math.PI / 2) == Math.floor(this.a2 / Math.PI / 2) ? this.r2 : Math.max(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
+      let minX = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 2) == Math.floor(this.a2 / Math.PI / 2 - 1 / 2) ? -this.r2 : Math.min(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
+      let maxY = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 4) == Math.floor(this.a2 / Math.PI / 2 - 1 / 4) ? this.r2 : Math.max(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
+      let minY = (Math.ceil(this.a1 / Math.PI / 2 - 3 / 4) == Math.floor(this.a2 / Math.PI / 2 - 3 / 4) ? -this.r2 : Math.min(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
+      this.offsetX = (maxX + minX) / 2;
+      this.offsetY = (maxY + minY) / 2;
+      this.offsetSize = Math.max(maxX - minX, maxY - minY);
+    }
     
-    let maxX = (Math.ceil(this.a1 / Math.PI / 2) == Math.floor(this.a2 / Math.PI / 2) ? this.r2 : Math.max(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
-    let minX = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 2) == Math.floor(this.a2 / Math.PI / 2 - 1 / 2) ? -this.r2 : Math.min(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
-    let maxY = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 4) == Math.floor(this.a2 / Math.PI / 2 - 1 / 4) ? this.r2 : Math.max(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
-    let minY = (Math.ceil(this.a1 / Math.PI / 2 - 3 / 4) == Math.floor(this.a2 / Math.PI / 2 - 3 / 4) ? -this.r2 : Math.min(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
-    this.offsetX = (maxX + minX) / 2;
-    this.offsetY = (maxY + minY) / 2;
-    this.offsetSize = Math.max(maxX - minX, maxY - minY);
+    this.setDim();
     
     this.show = function() {
         drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
@@ -1231,7 +1269,7 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
         let ang = angle(this.x, this.y, x, y);
         let angDist1 = angMod(ang - w.a1) * distance;
         let angDist2 = angMod(w.a2 - ang) * distance;
-        return this.r1 <= distance && distance <= this.r2 && (a2 - a1 == Math.PI * 2 || angDist1 + angDist2 <= distance * Math.PI * 2);
+        return this.r1 <= distance && distance <= this.r2 && (this.a2 - this.a1 == Math.PI * 2 || angDist1 + angDist2 <= distance * Math.PI * 2);
     }
     
     this.move = function(dx, dy) {
@@ -1271,46 +1309,51 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
 function ListWall(wList) {
     this.wallType = "list";
     this.walls = wList;
-    
-    let num = 0;
-    let totalX = 0;
-    let totalY = 0;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let minX = Number.POSITIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    for (let w of this.walls) {
-      num += 1;
-      totalX += w.centerX;
-      totalY += w.centerY;
-      for (let n = 0; n < w.num; n++) {
-        if (w.x[n] > maxX) {
-          maxX = w.x[n];
-        }
-        if (w.x[n] < minX) {
-          minX = w.x[n];
-        }
-        if (w.y[n] > maxY) {
-          maxY = w.y[n];
-        }
-        if (w.y[n] < minY) {
-          minY = w.y[n];
-        }
-      }
-    }
-    if (num == 0) {
-      this.centerX = 0;
-      this.centerY = 0;
-    } else {
-      this.centerX = totalX / num;
-      this.centerY = totalY / num;
-    }
-    this.offsetX = (maxX + minX) / 2 - this.centerX;
-    this.offsetY = (maxY + minY) / 2 - this.centerY;
-    this.offsetSize = Math.max(maxX - minX, maxY - minY);
-    this.angle = 0;
     this.wRest = this.walls[0].wRest;
     this.wFrict = this.walls[0].wFrict;
+    this.color = this.walls[0].color;
+    
+    this.setDim = function() {
+      let num = 0;
+      let totalX = 0;
+      let totalY = 0;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let minX = Number.POSITIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      for (let w of this.walls) {
+        num += 1;
+        totalX += w.centerX;
+        totalY += w.centerY;
+        for (let n = 0; n < w.num; n++) {
+          if (w.x[n] > maxX) {
+            maxX = w.x[n];
+          }
+          if (w.x[n] < minX) {
+            minX = w.x[n];
+          }
+          if (w.y[n] > maxY) {
+            maxY = w.y[n];
+          }
+          if (w.y[n] < minY) {
+            minY = w.y[n];
+          }
+        }
+      }
+      if (num == 0) {
+        this.centerX = 0;
+        this.centerY = 0;
+      } else {
+        this.centerX = totalX / num;
+        this.centerY = totalY / num;
+      }
+      this.offsetX = (maxX + minX) / 2 - this.centerX;
+      this.offsetY = (maxY + minY) / 2 - this.centerY;
+      this.offsetSize = Math.max(maxX - minX, maxY - minY);
+      this.angle = 0;
+    }
+    
+    this.setDim();
     
     this.show = function() {
       drawListWall(this.walls);
@@ -1377,6 +1420,13 @@ function ListWall(wList) {
         w.wFrict = wFrict;
       }
     }
+    
+    this.setColor = function(color) {
+      this.color = color;
+      for (let w of this.walls) {
+        w.color = color;
+      }
+    }
 }
 
 function Preset(title, settings, objects, func) {
@@ -1390,6 +1440,7 @@ function Preset(title, settings, objects, func) {
     
     gameTime = 0;
     dragObj = null;
+    if (menuType.includes("_")) menuType = "main";
     if (newX1 != null) {
       newX1 = null;
       newY1 = null;
@@ -1832,793 +1883,76 @@ function MenuFloat(n, title, clickable, get, set) {
   
 }
 
-function setup() {
+function MenuString(n, title, clickable, get, set) {
+  this.n = n;
+  this.title = title;
+  this.clickable = clickable;
+  this.rawGet = get;
+  this.rawSet = set;
   
-  menuValues.main = [
-    new MenuButton(0, "timing", function() {
-      menuType = "timing";
-    }),
-    new MenuButton(1, "presets", function() {
-      menuType = "presets";
-    }),
-    new MenuButton(2, "objects", function() {
-      menuType = "objects";
-    }),
-    new MenuButton(3, "defaults", function() {
-      menuType = "defaults";
-    }),
-    new MenuButton(4, "variables", function() {
-      menuType = "variables";
-    }),
-    new MenuButton(5, "info", function() {
-      menuType = "info";
-    }),
-  ];
+  this.hoverFactor = 1.08;
   
-  menuValues.timing = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuNumber(1, "fps", true, () => (fps), function(fps1) {
-      fps = fps1;
-    }),
-    new MenuNumber(2, "upf", true, () => (upf), function(upf1) {
-      upf = upf1;
-    }),
-    new MenuBoolean(3, "pause", true, () => (paused), togglePause),
-    new MenuButton(4, "update", doUpdate),
-    new MenuFloat(5, "time", true, () => (gameTime), function(t) {
-      gameTime = t;
-    }),
-    new MenuFloat(6, "end time", true, () => (endTime), function(t) {
-      endTime = t;
-    }),
-  ];
+  this.hovered = false;
+  this.clicked = false;
+  this.value = "";
   
-  menuValues.presets = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuButton(1, "save", function() {
-      let n = 0;
-      let found;
-      while (true) {
-        n += 1;
-        found = false;
-        for (p of menuValues.presets) {
-          if (p.preset != undefined) {
-            if (p.preset.title == "preset " + n) {
-              found = true;
-              break;
-            }
-          }
-        }
-        if (!found) {
-          break;
-        }
-      }
-      
-      let objects = [];
-      for (let b of balls) {
-        objects.push({
-          "type": "ball",
-          "px": b.px,
-          "py": b.py,
-          "pa": b.pa,
-          "vx": b.vx,
-          "vy": b.vy,
-          "va": b.va,
-          "mass": b.mass,
-          "size": b.size,
-          "moiCoef": b.moiCoef,
-          "drag0": b.drag0,
-          "drag1": b.drag1,
-          "drag2": b.drag2,
-          "color": b.color
-        });
-      }
-      for (let w of walls) {
-        switch (w.wallType) {
-          case "rect":
-            objects.push({
-              "type": "rectWall",
-              "x1": w.x1, 
-              "y1": w.y1, 
-              "x2": w.x2, 
-              "y2": w.y2, 
-              "size": w.size, 
-              "wRest": w.wRest,
-              "wFrict": w.wFrict,
-              "color": w.color
-            });
-            break;
-          case "tri":
-            objects.push({
-              "type": "triWall",
-              "x": w.x, 
-              "y": w.y, 
-              "wRest": w.wRest,
-              "wFrict": w.wFrict,
-              "color": w.color
-            });
-            break;
-          case "circle":
-            objects.push({
-              "type": "circleWall",
-              "x": w.x, 
-              "y": w.y, 
-              "r1": w.r1, 
-              "r2": w.r2, 
-              "a1": w.a1, 
-              "a2": w.a2, 
-              "wRest": w.wRest,
-              "wFrict": w.wFrict,
-              "color": w.color
-            });
-            break;
-          case "list":
-            objects.push({
-              "type": "listWall",
-              "wList": w.walls
-            });
-            break;
-        }
-      }
-      
-      menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
-        "endTime": endTime,
-        "speed": speed,
-        "height": gameHeight,
-        "screenX": screenX,
-        "screenY": screenY,
-        "distOffsetX": distOffsetX,
-        "distOffsetY": distOffsetY,
-        "G": G,
-        "gx": gx,
-        "gy": gy,
-        "bRestCoef": bRestCoef,
-        "bFrictCoef": bFrictCoef,
-        "windVX": windVX,
-        "windVY": windVY,
-        "collide": collide,
-        "density": density,
-        "moiCoef": moiCoef,
-        "wRestCoef": wRestCoef,
-        "wFrictCoef": wFrictCoef,
-        "drag0": dragCoef0,
-        "drag1": dragCoef1,
-        "drag2": dragCoef2,
-        "distInc": distInc,
-        "angInc": angInc
-      }, objects)));
-    }),
-    new MenuPreset(2, true, new Preset("empty", {
-      "endTime": -1,
-      "speed": 1,
-      "height": 10,
-      "x": 0,
-      "y": 0,
-      "G": 0,
-      "gx": 0,
-      "gy": 0,
-      "bRestCoef": 0.99,
-      "bFrictCoef": 0.2,
-      "windVX": 0,
-      "windVY": 0,
-      "collide": true,
-      "density": 1,
-      "moiCoef": 1/2,
-      "wRestCoef": 0.99,
-      "wFrictCoef": 0.2,
-      "drag0": 0,
-      "drag1": 0,
-      "drag2": 0,
-      "distInc": 1/2,
-      "angInc": 15
-    })),
-    new MenuPreset(3, true, new Preset("small", {
-      "endTime": -1,
-      "speed": 1,
-      "height": 10,
-      "x": 0,
-      "y": 0,
-      "G": 0,
-      "gx": 0,
-      "gy": -9.8,
-      "bRestCoef": 0.99,
-      "bFrictCoef": 0.2,
-      "windVX": 0,
-      "windVY": 0,
-      "collide": true,
-      "density": 1,
-      "moiCoef": 1/2,
-      "wRestCoef": 0.99,
-      "wFrictCoef": 0.2,
-      "drag0": 0,
-      "drag1": 0,
-      "drag2": 0,
-      "distInc": 1/2,
-      "angInc": 15
-    })),
-    new MenuPreset(4, true, new Preset("large", {
-      "endTime": -1,
-      "speed": 365 * 86400 / 10,
-      "height": 10 ** 12,
-      "x": 0,
-      "y": 0,
-      "G": 6.67 * 10 ** -11,
-      "gx": 0,
-      "gy": 0,
-      "bRestCoef": 0.99,
-      "bFrictCoef": 0.2,
-      "windVX": 0,
-      "windVY": 0,
-      "collide": true,
-      "density": 10 ** -2,
-      "moiCoef": 1/2,
-      "wRestCoef": 0.99,
-      "wFrictCoef": 0.2,
-      "drag0": 0,
-      "drag1": 0,
-      "drag2": 0,
-      "distInc": 5 * 10 ** 10,
-      "angInc": 15
-    })),
-    new MenuPreset(5, true, new Preset("box", {
-      "endTime": -1,
-      "speed": 1,
-      "height": 12,
-      "x": 0,
-      "y": 0,
-      "G": 0,
-      "gx": 0,
-      "gy": -9.8,
-      "bRestCoef": 0.99,
-      "bFrictCoef": 0.2,
-      "windVX": 0,
-      "windVY": 0,
-      "collide": true,
-      "density": 1,
-      "moiCoef": 1/2,
-      "wRestCoef": 0.99,
-      "wFrictCoef": 0.2,
-      "drag0": 0,
-      "drag1": 0,
-      "drag2": 0,
-      "distInc": 1/2,
-      "angInc": 15
-    }, [], function() {
-      let height = 10;
-      let width = 12 * main.width / main.height - 2;
-      let thick = 1;
-      walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
-      walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
-      walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
-      walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
-    })),
-    new MenuPreset(6, true, new Preset("orbit", {
-      "endTime": -1,
-      "speed": 365 * 86400 / 10,
-      "height": 10 ** 12,
-      "x": 0,
-      "y": 0,
-      "G": 6.67 * 10 ** -11,
-      "gx": 0,
-      "gy": 0,
-      "bRestCoef": 0.99,
-      "bFrictCoef": 0.2,
-      "windVX": 0,
-      "windVY": 0,
-      "collide": true,
-      "density": 10 ** -2,
-      "moiCoef": 1/2,
-      "wRestCoef": 0.99,
-      "wFrictCoef": 0.2,
-      "drag0": 0,
-      "drag1": 0,
-      "drag2": 0,
-      "distInc": 5 * 10 ** 10,
-      "angInc": 15
-    }, [], function() {
-      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, -0.089349, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, 0, 0, 0, "red"));
-      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, 0, 0, 0, "green"));
-    }))
-  ];
+  this.x = () => menu.width / 2;
+  this.y = () => this.n * menu.width * 7 / 20 + menu.width * 9 / 40;
+  this.sx = () => menu.width * 4 / 5 * (this.clickable && this.hovered ? this.hoverFactor : 1)
+  this.sy = () => menu.width / 4 * (this.clickable && this.hovered ? this.hoverFactor : 1)
   
-  menuValues.objects = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuButton(1, "ball", setBallMode),
-    new MenuButton(2, "rectangle wall", setRectWallMode),
-    new MenuButton(3, "triangle wall", setTriWallMode),
-    new MenuButton(4, "circle wall", setCircleWallMode),
-    new MenuButton(5, "custom wall", setListWallMode),
-    new MenuButton(6, "reset", resetObjects),
-  ];
-  
-  menuValues.defaults = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuFloat(1, "density", true, () => (density), function(density1) {
-      density = density1;
-    }),
-    new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
-      moiCoef = moiCoef1;
-    }),
-    new MenuFloat(3, "w rest", true, () => (wRestCoef), function(wRestCoef1) {
-      wRestCoef = wRestCoef1;
-    }),
-    new MenuFloat(4, "w frict", true, () => (wFrictCoef), function(wFrictCoef1) {
-      wFrictCoef = wFrictCoef1;
-    }),
-    new MenuFloat(5, "drag 0", true, () => (dragCoef0), function(dragCoef01) {
-      dragCoef0 = dragCoef01;
-    }),
-    new MenuFloat(6, "drag 1", true, () => (dragCoef1), function(dragCoef11) {
-      dragCoef1 = dragCoef11;
-    }),
-    new MenuFloat(7, "drag 2", true, () => (dragCoef2), function(dragCoef21) {
-      dragCoef2 = dragCoef21;
-    }),
-    new MenuFloat(8, "dist inc", true, () => (distInc), function(distInc1) {
-      distInc = distInc1;
-    }),
-    new MenuNumber(9, "angle inc", true, () => (angInc), function(angInc1) {
-      angInc = angInc1;
-    })
-  ];
-  
-  menuValues.variables = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuFloat(1, "speed", true, () => (speed), function(speed1) {
-      speed = speed1;
-    }),
-    new MenuFloat(2, "height", true, () => (gameHeight), function(height) {
-      zoom(height / gameHeight);
-    }),
-    new MenuFloat(3, "G", true, () => (G), function(G1) {
-      G = G1;
-    }),
-    new MenuFloat(4, "gx", true, () => (gx), function(gx1) {
-      gx = gx1;
-    }),
-    new MenuFloat(5, "gy", true, () => (gy), function(gy1) {
-      gy = gy1;
-    }),
-    new MenuFloat(6, "b rest", true, () => (bRestCoef), function(bRestCoef1) {
-      bRestCoef = bRestCoef1;
-    }),
-    new MenuFloat(7, "b frict", true, () => (bFrictCoef), function(bFrictCoef1) {
-      bFrictCoef = bFrictCoef1;
-    }),
-    new MenuFloat(8, "wind vx", true, () => (windVX), function(vx) {
-      windVX = vx;
-    }),
-    new MenuFloat(9, "wind vy", true, () => (windVY), function(vy) {
-      windVY = vy;
-    }),
-    new MenuBoolean(10, "collide", true, () => (collide), function() {
-      collide = !collide;
-    })
-  ];
-  
-  menuValues.info = [
-    new MenuButton(0, "main", function() {
-      menuType = "main";
-    }),
-    new MenuFloat(1, "px", false, function() {
-      let total = 0;
-      for (b of balls) {
-        total += b.mass * b.vx;
-      }
-      return total;
-    }),
-    new MenuFloat(2, "py", false, function() {
-      let total = 0;
-      for (b of balls) {
-        total += b.mass * b.vy;
-      }
-      return total;
-    }),
-    new MenuFloat(3, "kinetic", false, function() {
-      let total = 0;
-      for (b of balls) {
-        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2;
-      }
-      return total;
-    }),
-    new MenuFloat(4, "energy", false, function() {
-      let total = 0;
-      for (b of balls) {
-        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * b.px + gy * b.py);
-        if (G != 0) {
-          for (b1 of balls) {
-            if (b != b1) {
-              total -= G * b.mass * b1.mass / dist(b.px, b.py, b1.px, b1.py) / 2;
-            }
-          }
-        }
-      }
-      return total;
-    })
-  ];
-  
-  ballValues = [
-    new MenuFloat(2, "vx", true, () => (dragObj.vx), function(vx) {
-      dragObj.vx = vx;
-    }),
-    new MenuFloat(3, "vy", true, () => (dragObj.vy), function(vy) {
-      dragObj.vy = vy;
-    }),
-    new MenuFloat(4, "va", true, () => (dragObj.va), function(va) {
-      dragObj.va = va;
-    }),
-    new MenuFloat(5, "mass", true, () => (dragObj.mass), function(mass) {
-      dragObj.mass = mass;
-      dragObj.updateMOI();
-    }),
-    new MenuFloat(6, "size", true, () => (dragObj.size), function(size) {
-      dragObj.size = size;
-      dragObj.updateMOI();
-    }),
-    new MenuFloat(7, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
-      dragObj.setMOICoef(moiCoef);
-    }),
-    new MenuFloat(8, "drag 0", true, () => (dragObj.drag0), function(drag01) {
-      dragObj.drag0 = drag01;
-    }),
-    new MenuFloat(9, "drag 1", true, () => (dragObj.drag1), function(drag11) {
-      dragObj.drag1 = drag11;
-    }),
-    new MenuFloat(10, "drag 2", true, () => (dragObj.drag2), function(drag21) {
-      dragObj.drag2 = drag21;
-    }),
-    new MenuButton(11, "delete", deleteDragObj),
-  ];
-  
-  wallValues = [
-    new MenuFloat(2, "w rest", true, () => (dragObj.wRest), function(wRest) {
-      if (dragObj.wallType == "list") {
-        dragObj.setWRest(wRest);
-      } else {
-        dragObj.wRest = wRest;
-      }
-    }),
-    new MenuFloat(3, "w frict", true, () => (dragObj.wFrict), function(wFrict) {
-      if (dragObj.wallType == "list") {
-        dragObj.setWFrict(wFrict);
-      } else {
-        dragObj.wFrict = wFrict;
-      }
-    }),
-    new MenuButton(4, "delete", deleteDragObj),
-  ];
-  
-  setMenuHeight();
-  
-}
-
-function start() {
-  
-}
-
-function update(dt, end = true) {
-  
-  if (end && endTime >= 0 && gameTime + dt > endTime) {
-    if (gameTime == endTime) return;
-    dt = endTime - gameTime;
-    if (gameTime < endTime) gameTime = endTime;
-  } else {
-    gameTime += dt;
+  this.show = function() {
+    ctxMenu.fillStyle = "orange";
+    ctxMenu.fillRect(this.x() - this.sx() / 2, this.y() - this.sy() / 2, this.sx(), this.sy());
+    
+    ctxMenu.fillStyle = (this.clicked ? "white" : "black");
+    ctxMenu.font = menu.width * 2 / 21 + "px Arial"
+    ctxMenu.textAlign = "center";
+    ctxMenu.textBaseline = "middle";
+    ctxMenu.fillText(this.get(), this.x(), this.y());
   }
   
-  if (dragObj != null && dragMode == true) {
-    if (dragObj.wallType == undefined) {
-      dragObj.pa += b.va * dt;
+  this.getValue = () => this.clicked ? this.value : this.rawGet();
+  
+  this.get = () => (title + ": " + (this.getValue()));
+  
+  this.updateHover = function(x, y) {
+    this.hovered = this.x() - this.sx() / 2 <= x && x <= this.x() + this.sx() / 2 && this.y() - this.sy() / 2 <= y && y <= this.y() + this.sy() / 2;
+  }
+  
+  this.click = function() {
+    if (pressedKeys.includes("control")) {
+      navigator.clipboard.writeText(this.getValue());
+    } else if (this.clickable) {
+      this.clicked = true;
+      this.value = "";
     }
   }
   
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update1(dt);
-      }
-  }
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update2(dt);
-      }
-  }
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update3(dt);
-      }
-  }
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update4(dt);
-      }
-  }
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update5(dt);
-      }
-  }
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update6(dt);
-      }
-  }
-  for (b of balls) {
-      if (b != dragObj || dragMode == undefined) {
-          b.update7(dt);
-      }
-  }
-}
-
-function show() {
-  
-  scale();
-  ctxMain.fillStyle = "#efff9f";
-  ctxMain.fillRect(screenX, screenY, main.width / scaleFactor, main.height / scaleFactor);
-  
-  for (w of walls) {
-      w.show();
+  this.updateValue = function(char) {
+    if (char.length == 1) {
+      this.value += char;
+    }
   }
   
-  for (b of balls) {
-      b.show();
+  this.back = function() {
+     this.value = this.value.slice(0, this.value.length - 1);
   }
   
-  if (newX2 != null) {
-      let size;
-      let aligned;
-      switch (dragType) {
-          case "w":
-              size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
-              drawRectWall(newX1, newY1, newX2, newY2, size, newColor);
-              break;
-          case "t":
-              aligned = alignLine(newX2, newY2, mouseX, mouseY);
-              drawTriWall([newX1, newX2, aligned[0]], [newY1, newY2, aligned[1]], newColor);
-              break;
-          case "c":
-              let r1 = alignNum(dist(newX1, newY1, newX2, newY2));
-              let r2 = alignNum(dist(newX1, newY1, mouseX, mouseY));
-              if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
-                  r2 = 0;
-              }
-              let a1 = angle(newX1, newY1, newX2, newY2);
-              let a2 = alignAngle(a1 + newA);
-              if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
-                  a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
-              }
-              drawCircleWall(newX1, newY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
-              break;
-          case "l":
-              drawListWall(getListWall(newX1, newY1, listWallSize(newX1, newY1, mouseX, mouseY), newColor).walls);
-              break;
-      }
-  } else if (newX1 != null) {
-      switch (dragType) {
-          case "b":
-              let size = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
-              drawBall(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), size, newColor);
-              break;
-          case "w":
-              scale();
-              ctxMain.lineCap = "but" + "t";
-              ctxMain.beginPath();
-              ctxMain.moveTo(newX1, newY1);
-              ctxMain.lineTo(...alignLine(newX1, newY1, mouseX, mouseY));
-              ctxMain.strokeStyle = newColor;
-              ctxMain.lineWidth = 2 / scaleFactor;
-              ctxMain.stroke();
-              break;
-          case "t":
-              scale();
-              ctxMain.lineCap = "but" + "t";
-              ctxMain.beginPath();
-              ctxMain.moveTo(newX1, newY1);
-              ctxMain.lineTo(...alignLine(newX1, newY1, mouseX, mouseY));
-              ctxMain.strokeStyle = newColor;
-              ctxMain.lineWidth = 2 / scaleFactor;
-              ctxMain.stroke();
-              break;
-          case "c":
-              scale();
-              ctxMain.strokeStyle = newColor;
-              ctxMain.lineWidth = 2 / scaleFactor;
-              ctxMain.lineCap = "but" + "t";
-              ctxMain.beginPath();
-              ctxMain.moveTo(newX1, newY1);
-              ctxMain.lineTo(...alignDist(newX1, newY1, mouseX, mouseY));
-              ctxMain.stroke();
-              break;
-          case "l":
-              scale();
-              ctxMain.strokeStyle = newColor;
-              ctxMain.lineWidth = 2 / scaleFactor;
-              ctxMain.lineCap = "but" + "t";
-              ctxMain.beginPath();
-              ctxMain.moveTo(newX1[0], newY1[0])
-              for (let n = 1; n < newX1.length; n++) {
-                  ctxMain.lineTo(newX1[n], newY1[n]);
-              }
-              ctxMain.stroke();
-              break;
-      }
+  this.esc = function() {
+    this.clicked = false;
+  }
+  
+  this.set = function() {
+    this.rawSet(this.value);
+    this.clicked = false;
   }
   
 }
 
-function showMenu() {
-  
-  ctxMenu.fillStyle = "#1f0f6f";
-  ctxMenu.fillRect(0, 0, menu.width, menu.height);
-  
-  if (dragObj != null) {
-    if (dragObj.wallType == undefined) {
-      drawBall(menu.width / 2, menu.width * 2 / 5, -dragObj.pa, menu.width * 3 / 5 * (menuObjHovered ? 1.08 : 1), dragObj.color, ctxMenu);
-    } else {
-      let x;
-      let y;
-      let sizeScale = (menuObjHovered ? 1.08 : 1) * menu.width * 3 / 5 / dragObj.offsetSize;
-      switch (dragObj.wallType) {
-        case "rect":
-          drawRectWall(menu.width / 2 + (dragObj.x1 - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y1 - dragObj.centerY - dragObj.offsetY) * sizeScale, menu.width / 2 + (dragObj.x2 - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y2 - dragObj.centerY - dragObj.offsetY) * sizeScale, -dragObj.size * sizeScale, dragObj.color, ctxMenu);
-          break;
-        case "tri":
-          x = [];
-          y = [];
-          for (let n = 0; n < dragObj.num; n++) {
-            x.push(menu.width / 2 + (dragObj.x[n] - dragObj.centerX - dragObj.offsetX) * sizeScale);
-            y.push(menu.width * 2 / 5 - (dragObj.y[n] - dragObj.centerY - dragObj.offsetY) * sizeScale);
-          }
-          drawTriWall(x, y, dragObj.color, ctxMenu);
-          break;
-        case "circle":
-          drawCircleWall(menu.width / 2 + (dragObj.x - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y - dragObj.centerY - dragObj.offsetY) * sizeScale, dragObj.r1 * sizeScale, dragObj.r2 * sizeScale, -dragObj.a2, -dragObj.a1, dragObj.color, ctxMenu);
-          break;
-        case "list":
-          let wList = [];
-          for (let w of dragObj.walls) {
-            x = [];
-            y = [];
-            for (let n = 0; n < w.num; n++) {
-              x.push(menu.width / 2 + (w.x[n] - dragObj.centerX - dragObj.offsetX) * sizeScale);
-              y.push(menu.width * 2 / 5 - (w.y[n] - dragObj.centerY - dragObj.offsetY) * sizeScale);
-            }
-            wList.push([x, y, wRestCoef, wFrictCoef, w.color]);
-          }
-          drawListWall(getWalls(wList), ctxMenu);
-          break;
-      }
-    }
-  }
-  
-  ctxMenu.resetTransform();
-  for (v of getMenuValues()) {
-    v.show();
-  }
-  
+function gotoMainMenu() {
+  menuType = (dragObj == null ? "main" : (dragObj.wallType == undefined ? "ball_main" : "wall_main"));
 }
-
-function frame(time) {
-  
-  updateView();
-  
-  rawMaindt = (time - mainPTime) / 1000;
-  
-  if (rawMaindt * fps > 0.9) {
-    
-    if (!inValue) {
-      if (pressedKeys.includes("arrowright")) {
-          shift(main.width / scaleFactor / 5 * rawMaindt, 0);
-      }
-      if (pressedKeys.includes("arrowleft")) {
-          shift(- main.width / scaleFactor / 5 * rawMaindt, 0);
-      }
-      if (pressedKeys.includes("arrowup")) {
-          shift(0, main.height / scaleFactor / 5 * rawMaindt);
-      }
-      if (pressedKeys.includes("arrowdown")) {
-          shift(0, - main.height / scaleFactor / 5 * rawMaindt);
-      }
-      if (pressedKeys.includes("=") || pressedKeys.includes("+")) {
-          zoom(2 ** (-rawMaindt), mouseX, mouseY);
-      }
-      if (pressedKeys.includes("-") || pressedKeys.includes("_")) {
-          zoom(2 ** rawMaindt, mouseX, mouseY);
-      }
-      if (pressedKeys.includes(".") || pressedKeys.includes(">")) {
-          speed *= 2 ** rawMaindt;
-      }
-      if (pressedKeys.includes(",") || pressedKeys.includes("<")) {
-          speed /= 2 ** rawMaindt;
-      }
-    }
-    
-    maindt = rawMaindt * speed;
-    
-    if (maindt > 0) {
-        mainPTime = time;
-    }
-    
-    if (time - pColorTime > 500) {
-        newColor = randColor();
-        pColorTime = time;
-    }
-    
-    if (dragObj != null) {
-        if (dragObj.wallType == undefined) {
-            if (dragMode == true) {
-                dragObj.px = alignX(mouseX + dragOffsetX);
-                dragObj.py = alignY(mouseY + dragOffsetY);
-                if (!isNaN(mouseX - pfmouseX) && !isNaN(mouseY - pfmouseY)) {
-                  dragvx.push(mouseX - pfmouseX);
-                  if (dragvx.length > dragVTime * fps) {
-                      dragvx.shift();
-                  }
-                  dragvy.push(mouseY - pfmouseY);
-                  if (dragvy.length > dragVTime * fps) {
-                      dragvy.shift();
-                  }
-                }
-            } else if (dragMode == false) {
-                dragObj.pa = alignAngle(angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA);
-                let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pfmouseX, pfmouseY);
-                if (va > Math.PI) {
-                    va -= Math.PI;
-                }
-                if (!isNaN(va)) {
-                  dragva.push(va);
-                  if (dragva.length > dragVTime * fps) {
-                      dragva.shift();
-                  }
-                }
-            }
-        } else {;
-            if (dragMode == true) {
-                dragObj.move(alignX(mouseX + dragOffsetX) - dragObj.centerX, alignY(mouseY + dragOffsetY) - dragObj.centerY);
-            } else if (dragMode == false) {
-                dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
-            }
-        }
-    }
-    
-    if (!paused) {
-      let dt = rawMaindt * speed / upf;
-      if (dt > 0 && dt < 2 * speed / fps) {
-        for (let n = 0; n < upf; n++) {
-          update(dt);
-        }
-      }
-    }
-    
-    setMenuHeight();
-    
-    show();
-    showMenu();
-    
-  }
-  
-  pfmouseX = mouseX;
-  pfmouseY = mouseY;
-  
-  requestAnimationFrame(frame);
-  
-}
-
-updateView();
-setup();
-start();
-show();
-showMenu();
-requestAnimationFrame(frame);
 
 function listWallSize(x, y, mx, my) {
     //////use distance
@@ -2836,6 +2170,7 @@ function checkClick() {
     } else if (dragObj != null) {
         drag();
         dragObj = null;
+        menuType = "main";
     } else {
         return false;
     }
@@ -2844,9 +2179,9 @@ function checkClick() {
 
 function updateMenuObjHover() {
   if (dragObj != null) {
-    if (dragObj.wallType == undefined) {
+    if (menuType.includes("ball") && menuType != "ball_main") {
       menuObjHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= menu.width * 3 / 10 * (menuObjHovered ? 1.08 : 1);
-    } else {
+    } else if (menuType.includes("wall") && menuType != "wall_main") {
       let sizeScale = dragObj.offsetSize / menu.width / 3 * 5 / (menuObjHovered ? 1.08 : 1);
       menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * sizeScale + dragObj.centerX + dragObj.offsetX, (menu.width * 2 / 5 - clientY) * sizeScale + dragObj.centerY + dragObj.offsetY);
     }
@@ -2861,6 +2196,7 @@ function deleteDragObj() {
           walls.splice(walls.indexOf(dragObj), 1);
       }
       dragObj = null;
+      menuType = "main";
   } else if (newX1 != null) {
       newX1 = null;
       newY1 = null;
@@ -2948,11 +2284,14 @@ function setListWallMode() {
 
 function resetObjects() {
   if (balls.length == 0) {
+    dragObj = null;
+    menuType = "main";
     walls = [];
   } else {
     if (dragObj != null) {
       if (dragObj.wallType == undefined) {
         dragObj = null;
+        menuType = "main";
       }
     }
     balls = [];
@@ -3131,6 +2470,7 @@ main.onmousedown = function(event) {
                     dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
                     dragva = [];
                 }
+                menuType = "ball";
             }
         }
         
@@ -3144,6 +2484,7 @@ main.onmousedown = function(event) {
                     } else if (dragMode == false) {
                         dragOffsetA = dragObj.angle - angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
                     }
+                    menuType = "wall";
                 }
             }
         }
@@ -3200,6 +2541,12 @@ menu.onmousedown = function(event) {
         }
       }
     }
+    if (dragObj != null) {
+      updateMenuObjHover();
+      if (menuObjHovered) {
+        shift((dragObj.wallType == undefined ? dragObj.px : dragObj.centerX) - gameWidth / 2 - screenX, (dragObj.wallType == undefined ? dragObj.py : dragObj.centerY) - gameHeight / 2 - screenY);
+      }
+    }
     for (v of getMenuValues()) {
       v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop);
       if (v.hovered) {
@@ -3214,13 +2561,931 @@ menu.onmousedown = function(event) {
         break;
       }
     }
-    if (dragObj != null) {
-      updateMenuObjHover();
-      if (menuObjHovered) {
-        shift((dragObj.wallType == undefined ? dragObj.px : dragObj.centerX) - gameWidth / 2 - screenX, (dragObj.wallType == undefined ? dragObj.py : dragObj.centerY) - gameHeight / 2 - screenY);
+  }
+
+function setup() {
+  
+  menuValues.main = [
+    new MenuButton(0, "timing", function() {
+      menuType = "timing";
+    }),
+    new MenuButton(1, "presets", function() {
+      menuType = "presets";
+    }),
+    new MenuButton(2, "objects", function() {
+      menuType = "objects";
+    }),
+    new MenuButton(3, "defaults", function() {
+      menuType = "defaults";
+    }),
+    new MenuButton(4, "variables", function() {
+      menuType = "variables";
+    }),
+    new MenuButton(5, "info", function() {
+      menuType = "info";
+    }),
+  ];
+  
+  menuValues.timing = [
+    new MenuButton(0, "main", gotoMainMenu),
+    new MenuNumber(1, "fps", true, () => (fps), function(fps1) {
+      fps = fps1;
+    }),
+    new MenuNumber(2, "upf", true, () => (upf), function(upf1) {
+      upf = upf1;
+    }),
+    new MenuBoolean(3, "pause", true, () => (paused), togglePause),
+    new MenuButton(4, "update", doUpdate),
+    new MenuFloat(5, "time", true, () => (gameTime), function(t) {
+      gameTime = t;
+    }),
+    new MenuFloat(6, "end time", true, () => (endTime), function(t) {
+      endTime = t;
+    }),
+  ];
+  
+  let defaultPreset = {
+      "endTime": -1,
+      "speed": 1,
+      "height": 10,
+      "x": 0,
+      "y": 0,
+      "G": 0,
+      "gx": 0,
+      "gy": 0,
+      "bRestCoef": 0.99,
+      "bFrictCoef": 0.2,
+      "windVX": 0,
+      "windVY": 0,
+      "collide": true,
+      "density": 1,
+      "moiCoef": 1/2,
+      "wRestCoef": 0.99,
+      "wFrictCoef": 0.2,
+      "drag0": 0,
+      "drag1": 0,
+      "drag2": 0,
+      "distInc": 1/2,
+      "angInc": 15
+    };
+  
+  menuValues.presets = [
+    new MenuButton(0, "main", gotoMainMenu),
+    new MenuButton(1, "save", function() {
+      let n = 0;
+      let found;
+      while (true) {
+        n += 1;
+        found = false;
+        for (p of menuValues.presets) {
+          if (p.preset != undefined) {
+            if (p.preset.title == "preset " + n) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (!found) {
+          break;
+        }
+      }
+      
+      let objects = [];
+      for (let b of balls) {
+        objects.push({
+          "type": "ball",
+          "px": b.px,
+          "py": b.py,
+          "pa": b.pa,
+          "vx": b.vx,
+          "vy": b.vy,
+          "va": b.va,
+          "mass": b.mass,
+          "size": b.size,
+          "moiCoef": b.moiCoef,
+          "drag0": b.drag0,
+          "drag1": b.drag1,
+          "drag2": b.drag2,
+          "color": b.color
+        });
+      }
+      for (let w of walls) {
+        switch (w.wallType) {
+          case "rect":
+            objects.push({
+              "type": "rectWall",
+              "x1": w.x1, 
+              "y1": w.y1, 
+              "x2": w.x2, 
+              "y2": w.y2, 
+              "size": w.size, 
+              "wRest": w.wRest,
+              "wFrict": w.wFrict,
+              "color": w.color
+            });
+            break;
+          case "tri":
+            objects.push({
+              "type": "triWall",
+              "x": w.x, 
+              "y": w.y, 
+              "wRest": w.wRest,
+              "wFrict": w.wFrict,
+              "color": w.color
+            });
+            break;
+          case "circle":
+            objects.push({
+              "type": "circleWall",
+              "x": w.x, 
+              "y": w.y, 
+              "r1": w.r1, 
+              "r2": w.r2, 
+              "a1": w.a1, 
+              "a2": w.a2, 
+              "wRest": w.wRest,
+              "wFrict": w.wFrict,
+              "color": w.color
+            });
+            break;
+          case "list":
+            objects.push({
+              "type": "listWall",
+              "wList": w.walls
+            });
+            break;
+        }
+      }
+      
+      menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
+        "endTime": endTime,
+        "speed": speed,
+        "height": gameHeight,
+        "screenX": screenX,
+        "screenY": screenY,
+        "distOffsetX": distOffsetX,
+        "distOffsetY": distOffsetY,
+        "G": G,
+        "gx": gx,
+        "gy": gy,
+        "bRestCoef": bRestCoef,
+        "bFrictCoef": bFrictCoef,
+        "windVX": windVX,
+        "windVY": windVY,
+        "collide": collide,
+        "density": density,
+        "moiCoef": moiCoef,
+        "wRestCoef": wRestCoef,
+        "wFrictCoef": wFrictCoef,
+        "drag0": dragCoef0,
+        "drag1": dragCoef1,
+        "drag2": dragCoef2,
+        "distInc": distInc,
+        "angInc": angInc
+      }, objects)));
+    }),
+    new MenuPreset(2, true, new Preset("empty", defaultPreset)),
+    new MenuPreset(3, true, new Preset("small", {
+      ...defaultPreset,
+      "gy": -9.8
+    })),
+    new MenuPreset(4, true, new Preset("large", {
+      ...defaultPreset,
+      "speed": 365 * 86400 / 10,
+      "height": 10 ** 12,
+      "G": 6.67 * 10 ** -11,
+      "density": 10 ** -2,
+      "distInc": 5 * 10 ** 10,
+    })),
+    new MenuPreset(5, true, new Preset("box", {
+      ...defaultPreset,
+      "height": 12,
+      "gy": -9.8
+    }, [], function() {
+      let height = 10;
+      let width = 12 * main.width / main.height - 2;
+      let thick = 1;
+      walls.push(new RectWall(-thick, -thick, width + 2 + thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
+      walls.push(new RectWall(width + 2 + thick, -thick, width + 2 + thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
+      walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
+      walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
+    })),
+    new MenuPreset(6, true, new Preset("orbit", {
+      ...defaultPreset,
+      "speed": 365 * 86400 / 10,
+      "height": 10 ** 12,
+      "G": 6.67 * 10 ** -11,
+      "density": 10 ** -2,
+      "distInc": 5 * 10 ** 10,
+    }, [], function() {
+      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, -0.089349, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, 0, 0, 0, "red"));
+      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, 0, 0, 0, "green"));
+    }))
+  ];
+  
+  menuValues.objects = [
+    new MenuButton(0, "main", gotoMainMenu),
+    new MenuButton(1, "ball", setBallMode),
+    new MenuButton(2, "rectangle wall", setRectWallMode),
+    new MenuButton(3, "triangle wall", setTriWallMode),
+    new MenuButton(4, "circle wall", setCircleWallMode),
+    new MenuButton(5, "custom wall", setListWallMode),
+    new MenuButton(6, "reset", resetObjects),
+  ];
+  
+  menuValues.defaults = [
+    new MenuButton(0, "main", gotoMainMenu),
+    new MenuFloat(1, "density", true, () => (density), function(density1) {
+      density = density1;
+    }),
+    new MenuFloat(2, "moi", true, () => (moiCoef), function(moiCoef1) {
+      moiCoef = moiCoef1;
+    }),
+    new MenuFloat(3, "w rest", true, () => (wRestCoef), function(wRestCoef1) {
+      wRestCoef = wRestCoef1;
+    }),
+    new MenuFloat(4, "w frict", true, () => (wFrictCoef), function(wFrictCoef1) {
+      wFrictCoef = wFrictCoef1;
+    }),
+    new MenuFloat(5, "drag 0", true, () => (dragCoef0), function(dragCoef01) {
+      dragCoef0 = dragCoef01;
+    }),
+    new MenuFloat(6, "drag 1", true, () => (dragCoef1), function(dragCoef11) {
+      dragCoef1 = dragCoef11;
+    }),
+    new MenuFloat(7, "drag 2", true, () => (dragCoef2), function(dragCoef21) {
+      dragCoef2 = dragCoef21;
+    }),
+    new MenuFloat(8, "dist inc", true, () => (distInc), function(distInc1) {
+      distInc = distInc1;
+    }),
+    new MenuNumber(9, "angle inc", true, () => (angInc), function(angInc1) {
+      angInc = angInc1;
+    })
+  ];
+  
+  menuValues.variables = [
+    new MenuButton(0, "main", gotoMainMenu),
+    new MenuFloat(1, "speed", true, () => (speed), function(speed1) {
+      speed = speed1;
+    }),
+    new MenuFloat(2, "height", true, () => (gameHeight), function(height) {
+      zoom(height / gameHeight);
+    }),
+    new MenuFloat(3, "G", true, () => (G), function(G1) {
+      G = G1;
+    }),
+    new MenuFloat(4, "gx", true, () => (gx), function(gx1) {
+      gx = gx1;
+    }),
+    new MenuFloat(5, "gy", true, () => (gy), function(gy1) {
+      gy = gy1;
+    }),
+    new MenuFloat(6, "b rest", true, () => (bRestCoef), function(bRestCoef1) {
+      bRestCoef = bRestCoef1;
+    }),
+    new MenuFloat(7, "b frict", true, () => (bFrictCoef), function(bFrictCoef1) {
+      bFrictCoef = bFrictCoef1;
+    }),
+    new MenuFloat(8, "wind vx", true, () => (windVX), function(vx) {
+      windVX = vx;
+    }),
+    new MenuFloat(9, "wind vy", true, () => (windVY), function(vy) {
+      windVY = vy;
+    }),
+    new MenuBoolean(10, "collide", true, () => (collide), function() {
+      collide = !collide;
+    })
+  ];
+  
+  menuValues.info = [
+    new MenuButton(0, "main", gotoMainMenu),
+    new MenuFloat(1, "px", false, function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * b.vx;
+      }
+      return total;
+    }),
+    new MenuFloat(2, "py", false, function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * b.vy;
+      }
+      return total;
+    }),
+    new MenuFloat(3, "kinetic", false, function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2;
+      }
+      return total;
+    }),
+    new MenuFloat(4, "energy", false, function() {
+      let total = 0;
+      for (b of balls) {
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * b.px + gy * b.py);
+        if (G != 0) {
+          for (b1 of balls) {
+            if (b != b1) {
+              total -= G * b.mass * b1.mass / dist(b.px, b.py, b1.px, b1.py) / 2;
+            }
+          }
+        }
+      }
+      return total;
+    })
+  ];
+  
+  menuValues.ball_main = [
+    new MenuButton(0, "ball", function() {
+      menuType = "ball";
+    }),
+    new MenuButton(1, "timing", function() {
+      menuType = "timing";
+    }),
+    new MenuButton(2, "presets", function() {
+      menuType = "presets";
+    }),
+    new MenuButton(3, "objects", function() {
+      menuType = "objects";
+    }),
+    new MenuButton(4, "defaults", function() {
+      menuType = "defaults";
+    }),
+    new MenuButton(5, "variables", function() {
+      menuType = "variables";
+    }),
+    new MenuButton(6, "info", function() {
+      menuType = "info";
+    }),
+  ];
+  
+  menuValues.ball = [
+    new MenuButton(2, "main", function() {
+      menuType = "ball_main";
+    }),
+    new MenuButton(3, "general", function() {
+      menuType = "ball_general";
+    }),
+    new MenuButton(4, "position", function() {
+      menuType = "ball_position";
+    }),
+    new MenuButton(5, "velocity", function() {
+      menuType = "ball_velocity";
+    }),
+    new MenuButton(6, "drag", function() {
+      menuType = "ball_drag";
+    }),
+    new MenuButton(7, "delete", deleteDragObj),
+  ];
+  
+  menuValues.ball_general = [
+    new MenuButton(2, "ball", function() {
+      menuType = "ball";
+    }),
+    new MenuString(3, "color", true, () => (stringifyColor(dragObj.color)), function(color1) {
+      dragObj.color = formatColor(color1);
+    }),
+    new MenuFloat(4, "size", true, () => (dragObj.size), function(size) {
+      dragObj.size = size;
+      dragObj.updateMOI();
+    }),
+    new MenuFloat(5, "mass", true, () => (dragObj.mass), function(mass) {
+      dragObj.mass = mass;
+      dragObj.updateMOI();
+    }),
+    new MenuFloat(6, "moi", true, () => (dragObj.moiCoef), function(moiCoef) {
+      dragObj.setMOICoef(moiCoef);
+    }),
+  ];
+  
+  menuValues.ball_position = [
+    new MenuButton(2, "ball", function() {
+      menuType = "ball";
+    }),
+    new MenuFloat(3, "px", true, () => (dragObj.px), function(px) {
+      dragObj.px = px;
+    }),
+    new MenuFloat(4, "py", true, () => (dragObj.py), function(py) {
+      dragObj.py = py;
+    }),
+    new MenuFloat(5, "pa", true, () => (dragObj.pa), function(pa) {
+      dragObj.pa = pa;
+    }),
+  ];
+  
+  menuValues.ball_velocity = [
+    new MenuButton(2, "ball", function() {
+      menuType = "ball";
+    }),
+    new MenuFloat(3, "vx", true, () => (dragObj.vx), function(vx) {
+      dragObj.vx = vx;
+    }),
+    new MenuFloat(4, "vy", true, () => (dragObj.vy), function(vy) {
+      dragObj.vy = vy;
+    }),
+    new MenuFloat(5, "va", true, () => (dragObj.va), function(va) {
+      dragObj.va = va;
+    }),
+  ];
+  
+  menuValues.ball_drag = [
+    new MenuButton(2, "ball", function() {
+      menuType = "ball";
+    }),
+    new MenuFloat(3, "drag 0", true, () => (dragObj.drag0), function(drag01) {
+      dragObj.drag0 = drag01;
+    }),
+    new MenuFloat(4, "drag 1", true, () => (dragObj.drag1), function(drag11) {
+      dragObj.drag1 = drag11;
+    }),
+    new MenuFloat(5, "drag 2", true, () => (dragObj.drag2), function(drag21) {
+      dragObj.drag2 = drag21;
+    }),
+  ];
+  
+  menuValues.wall_main = [
+    new MenuButton(0, "wall", function() {
+      menuType = "wall";
+    }),
+    new MenuButton(1, "timing", function() {
+      menuType = "timing";
+    }),
+    new MenuButton(2, "presets", function() {
+      menuType = "presets";
+    }),
+    new MenuButton(3, "objects", function() {
+      menuType = "objects";
+    }),
+    new MenuButton(4, "defaults", function() {
+      menuType = "defaults";
+    }),
+    new MenuButton(5, "variables", function() {
+      menuType = "variables";
+    }),
+    new MenuButton(6, "info", function() {
+      menuType = "info";
+    }),
+  ];
+  
+  menuValues.wall = [
+    new MenuButton(2, "main", function() {
+      menuType = "wall_main";
+    }),
+    new MenuButton(3, "general", function() {
+      menuType = "wall_general";
+    }),
+    new MenuButton(4, "position", function() {
+      menuType = "wall_position_" + dragObj.wallType;
+    }),
+    new MenuButton(5, "delete", deleteDragObj),
+  ];
+  
+  menuValues.wall_general = [
+    new MenuButton(2, "wall", function() {
+      menuType = "wall";
+    }),
+    new MenuString(3, "color", true, () => (stringifyColor(dragObj.color)), function(color1) {
+      if (dragObj.wallType == "list") {
+        dragObj.setColor(formatColor(color1));
+      } else {
+        dragObj.color = formatColor(color1);
+      }
+    }),
+    new MenuFloat(4, "w rest", true, () => (dragObj.wRest), function(wRest) {
+      if (dragObj.wallType == "list") {
+        dragObj.setWRest(wRest);
+      } else {
+        dragObj.wRest = wRest;
+      }
+    }),
+    new MenuFloat(5, "w frict", true, () => (dragObj.wFrict), function(wFrict) {
+      if (dragObj.wallType == "list") {
+        dragObj.setWFrict(wFrict);
+      } else {
+        dragObj.wFrict = wFrict;
+      }
+    }),
+  ];
+  
+  menuValues.wall_position_rect = [
+    new MenuButton(2, "wall", function() {
+      menuType = "wall";
+    }),
+    new MenuFloat(3, "x1", true, () => (dragObj.x1), function(x1) {
+      dragObj.x1 = x1;
+      dragObj.setDim();
+    }),
+    new MenuFloat(4, "y1", true, () => (dragObj.y1), function(y1) {
+      dragObj.y1 = y1;
+      dragObj.setDim();
+    }),
+    new MenuFloat(5, "x2", true, () => (dragObj.x2), function(x2) {
+      dragObj.x2 = x2;
+      dragObj.setDim();
+    }),
+    new MenuFloat(6, "y2", true, () => (dragObj.y2), function(y2) {
+      dragObj.y2 = y2;
+      dragObj.setDim();
+    }),
+    new MenuFloat(7, "size", true, () => (dragObj.size), function(size) {
+      dragObj.size = size;
+      dragObj.setDim();
+    }),
+  ];
+  
+  menuValues.wall_position_tri = [
+    new MenuButton(2, "wall", function() {
+      menuType = "wall";
+    }),
+    new MenuFloat(3, "x1", true, () => (dragObj.x[0]), function(x1) {
+      dragObj.x[0] = x1;
+      dragObj.setDim();
+    }),
+    new MenuFloat(4, "y1", true, () => (dragObj.y[0]), function(y1) {
+      dragObj.y[0] = y1;
+      dragObj.setDim();
+    }),
+    new MenuFloat(5, "x2", true, () => (dragObj.x[1]), function(x2) {
+      dragObj.x[1] = x2;
+      dragObj.setDim();
+    }),
+    new MenuFloat(6, "y2", true, () => (dragObj.y[1]), function(y2) {
+      dragObj.y[1] = y2;
+      dragObj.setDim();
+    }),
+    new MenuFloat(7, "x2", true, () => (dragObj.x[2]), function(x3) {
+      dragObj.x[2] = x3;
+      dragObj.setDim();
+    }),
+    new MenuFloat(8, "y2", true, () => (dragObj.y[2]), function(y3) {
+      dragObj.y[2] = y3;
+      dragObj.setDim();
+    }),
+  ];
+  
+  menuValues.wall_position_circle = [
+    new MenuButton(2, "wall", function() {
+      menuType = "wall";
+    }),
+    new MenuFloat(3, "x", true, () => (dragObj.x), function(x) {
+      dragObj.x = x;
+      dragObj.setDim();
+    }),
+    new MenuFloat(4, "y", true, () => (dragObj.y), function(y) {
+      dragObj.y = y;
+      dragObj.setDim();
+    }),
+    new MenuFloat(5, "r1", true, () => (dragObj.radius1), function(r1) {
+      dragObj.radius1 = r1;
+      dragObj.setDim();
+    }),
+    new MenuFloat(6, "r2", true, () => (dragObj.radius2), function(r2) {
+      dragObj.radius2 = r2;
+      dragObj.setDim();
+    }),
+    new MenuFloat(7, "a1", true, () => (dragObj.angle1 * 180 / Math.PI), function(a1) {
+      dragObj.angle1 = a1 * Math.PI / 180;
+      dragObj.setDim();
+    }),
+    new MenuFloat(8, "a2", true, () => (dragObj.angle2 * 180 / Math.PI), function(a2) {
+      dragObj.angle2 = a2 * Math.PI / 180;
+      dragObj.setDim();
+    }),
+  ];
+  
+  menuValues.wall_position_list = [
+    new MenuButton(2, "wall", function() {
+      menuType = "wall";
+    }),
+    new MenuFloat(3, "x", true, () => (dragObj.centerX), function(x) {
+      dragObj.move(x - dragObj.centerX, 0);
+    }),
+    new MenuFloat(4, "y", true, () => (dragObj.centerY), function(y) {
+      dragObj.move(0, y - dragObj.centerY);
+    }),
+    new MenuFloat(5, "a", true, () => (dragObj.angle * 180 / Math.PI), function(a) {
+      dragObj.rotate(a * Math.PI / 180 - dragObj.angle);
+    }),
+  ];
+  
+  setMenuHeight();
+  
+}
+
+function update(dt, end = true) {
+  
+  if (end && endTime >= 0 && gameTime + dt > endTime) {
+    if (gameTime == endTime) return;
+    dt = endTime - gameTime;
+    if (gameTime < endTime) gameTime = endTime;
+  } else {
+    gameTime += dt;
+  }
+  
+  if (dragObj != null && dragMode == true) {
+    if (dragObj.wallType == undefined) {
+      dragObj.pa += b.va * dt;
+    }
+  }
+  
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update1(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update2(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update3(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update4(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update5(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update6(dt);
+      }
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update7(dt);
+      }
+  }
+}
+
+function show() {
+  
+  scale();
+  ctxMain.fillStyle = "#efff9f";
+  ctxMain.fillRect(screenX, screenY, main.width / scaleFactor, main.height / scaleFactor);
+  
+  for (w of walls) {
+      w.show();
+  }
+  
+  for (b of balls) {
+      b.show();
+  }
+  
+  if (newX2 != null) {
+      let size;
+      let aligned;
+      switch (dragType) {
+          case "w":
+              size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
+              drawRectWall(newX1, newY1, newX2, newY2, size, newColor);
+              break;
+          case "t":
+              aligned = alignLine(newX2, newY2, mouseX, mouseY);
+              drawTriWall([newX1, newX2, aligned[0]], [newY1, newY2, aligned[1]], newColor);
+              break;
+          case "c":
+              let r1 = alignNum(dist(newX1, newY1, newX2, newY2));
+              let r2 = alignNum(dist(newX1, newY1, mouseX, mouseY));
+              if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
+                  r2 = 0;
+              }
+              let a1 = angle(newX1, newY1, newX2, newY2);
+              let a2 = alignAngle(a1 + newA);
+              if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
+                  a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
+              }
+              drawCircleWall(newX1, newY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
+              break;
+          case "l":
+              drawListWall(getListWall(newX1, newY1, listWallSize(newX1, newY1, mouseX, mouseY), newColor).walls);
+              break;
+      }
+  } else if (newX1 != null) {
+      switch (dragType) {
+          case "b":
+              let size = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
+              drawBall(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), size, newColor);
+              break;
+          case "w":
+              scale();
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(newX1, newY1);
+              ctxMain.lineTo(...alignLine(newX1, newY1, mouseX, mouseY));
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.stroke();
+              break;
+          case "t":
+              scale();
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(newX1, newY1);
+              ctxMain.lineTo(...alignLine(newX1, newY1, mouseX, mouseY));
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.stroke();
+              break;
+          case "c":
+              scale();
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(newX1, newY1);
+              ctxMain.lineTo(...alignDist(newX1, newY1, mouseX, mouseY));
+              ctxMain.stroke();
+              break;
+          case "l":
+              scale();
+              ctxMain.strokeStyle = newColor;
+              ctxMain.lineWidth = 2 / scaleFactor;
+              ctxMain.lineCap = "but" + "t";
+              ctxMain.beginPath();
+              ctxMain.moveTo(newX1[0], newY1[0])
+              for (let n = 1; n < newX1.length; n++) {
+                  ctxMain.lineTo(newX1[n], newY1[n]);
+              }
+              ctxMain.stroke();
+              break;
+      }
+  }
+  
+}
+
+function showMenu() {
+  
+  ctxMenu.fillStyle = "#1f0f6f";
+  ctxMenu.fillRect(0, 0, menu.width, menu.height);
+  
+  if (dragObj != null) {
+    if (menuType.includes("ball") && menuType != "ball_main") {
+      drawBall(menu.width / 2, menu.width * 2 / 5, -dragObj.pa, menu.width * 3 / 5 * (menuObjHovered ? 1.08 : 1), dragObj.color, ctxMenu);
+    } else if (menuType.includes("wall") && menuType != "wall_main") {
+      let x;
+      let y;
+      let sizeScale = (menuObjHovered ? 1.08 : 1) * menu.width * 3 / 5 / dragObj.offsetSize;
+      switch (dragObj.wallType) {
+        case "rect":
+          drawRectWall(menu.width / 2 + (dragObj.x1 - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y1 - dragObj.centerY - dragObj.offsetY) * sizeScale, menu.width / 2 + (dragObj.x2 - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y2 - dragObj.centerY - dragObj.offsetY) * sizeScale, -dragObj.size * sizeScale, dragObj.color, ctxMenu);
+          break;
+        case "tri":
+          x = [];
+          y = [];
+          for (let n = 0; n < dragObj.num; n++) {
+            x.push(menu.width / 2 + (dragObj.x[n] - dragObj.centerX - dragObj.offsetX) * sizeScale);
+            y.push(menu.width * 2 / 5 - (dragObj.y[n] - dragObj.centerY - dragObj.offsetY) * sizeScale);
+          }
+          drawTriWall(x, y, dragObj.color, ctxMenu);
+          break;
+        case "circle":
+          drawCircleWall(menu.width / 2 + (dragObj.x - dragObj.centerX - dragObj.offsetX) * sizeScale, menu.width * 2 / 5 - (dragObj.y - dragObj.centerY - dragObj.offsetY) * sizeScale, dragObj.r1 * sizeScale, dragObj.r2 * sizeScale, -dragObj.a2, -dragObj.a1, dragObj.color, ctxMenu);
+          break;
+        case "list":
+          let wList = [];
+          for (let w of dragObj.walls) {
+            x = [];
+            y = [];
+            for (let n = 0; n < w.num; n++) {
+              x.push(menu.width / 2 + (w.x[n] - dragObj.centerX - dragObj.offsetX) * sizeScale);
+              y.push(menu.width * 2 / 5 - (w.y[n] - dragObj.centerY - dragObj.offsetY) * sizeScale);
+            }
+            wList.push([x, y, wRestCoef, wFrictCoef, w.color]);
+          }
+          drawListWall(getWalls(wList), ctxMenu);
+          break;
       }
     }
   }
+  
+  ctxMenu.resetTransform();
+  for (v of getMenuValues()) {
+    v.show();
+  }
+  
+}
+
+function frame(time) {
+  
+  updateView();
+  
+  rawMaindt = (time - mainPTime) / 1000;
+  
+  if (rawMaindt * fps > 0.9) {
+    
+    if (!inValue) {
+      if (pressedKeys.includes("arrowright")) {
+          shift(main.width / scaleFactor / 5 * rawMaindt, 0);
+      }
+      if (pressedKeys.includes("arrowleft")) {
+          shift(- main.width / scaleFactor / 5 * rawMaindt, 0);
+      }
+      if (pressedKeys.includes("arrowup")) {
+          shift(0, main.height / scaleFactor / 5 * rawMaindt);
+      }
+      if (pressedKeys.includes("arrowdown")) {
+          shift(0, - main.height / scaleFactor / 5 * rawMaindt);
+      }
+      if (pressedKeys.includes("=") || pressedKeys.includes("+")) {
+          zoom(2 ** (-rawMaindt), mouseX, mouseY);
+      }
+      if (pressedKeys.includes("-") || pressedKeys.includes("_")) {
+          zoom(2 ** rawMaindt, mouseX, mouseY);
+      }
+      if (pressedKeys.includes(".") || pressedKeys.includes(">")) {
+          speed *= 2 ** rawMaindt;
+      }
+      if (pressedKeys.includes(",") || pressedKeys.includes("<")) {
+          speed /= 2 ** rawMaindt;
+      }
+    }
+    
+    maindt = rawMaindt * speed;
+    
+    if (maindt > 0) {
+        mainPTime = time;
+    }
+    
+    if (time - pColorTime > 500) {
+        newColor = randColor();
+        pColorTime = time;
+    }
+    
+    if (dragObj != null) {
+        if (dragObj.wallType == undefined) {
+            if (dragMode == true) {
+                dragObj.px = alignX(mouseX + dragOffsetX);
+                dragObj.py = alignY(mouseY + dragOffsetY);
+                if (!isNaN(mouseX - pfmouseX) && !isNaN(mouseY - pfmouseY)) {
+                  dragvx.push(mouseX - pfmouseX);
+                  if (dragvx.length > dragVTime * fps) {
+                      dragvx.shift();
+                  }
+                  dragvy.push(mouseY - pfmouseY);
+                  if (dragvy.length > dragVTime * fps) {
+                      dragvy.shift();
+                  }
+                }
+            } else if (dragMode == false) {
+                dragObj.pa = alignAngle(angle(dragObj.px, dragObj.py, mouseX, mouseY) + dragOffsetA);
+                let va = angle(dragObj.px, dragObj.py, mouseX, mouseY) - angle(dragObj.px, dragObj.py, pfmouseX, pfmouseY);
+                if (va > Math.PI) {
+                    va -= Math.PI;
+                }
+                if (!isNaN(va)) {
+                  dragva.push(va);
+                  if (dragva.length > dragVTime * fps) {
+                      dragva.shift();
+                  }
+                }
+            }
+        } else {;
+            if (dragMode == true) {
+                dragObj.move(alignX(mouseX + dragOffsetX) - dragObj.centerX, alignY(mouseY + dragOffsetY) - dragObj.centerY);
+            } else if (dragMode == false) {
+                dragObj.rotate(alignAngle(angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY) + dragOffsetA) - dragObj.angle);
+            }
+        }
+    }
+    
+    if (!paused) {
+      let dt = rawMaindt * speed / upf;
+      if (dt > 0 && dt < 2 * speed / fps) {
+        for (let n = 0; n < upf; n++) {
+          update(dt);
+        }
+      }
+    }
+    
+    setMenuHeight();
+    
+    show();
+    showMenu();
+    
+  }
+  
+  pfmouseX = mouseX;
+  pfmouseY = mouseY;
+  
+  requestAnimationFrame(frame);
+  
+}
+
+updateView();
+setup();
+show();
+showMenu();
+requestAnimationFrame(frame);
           
         </script>
     </body>
