@@ -3,7 +3,7 @@ https://sites.google.com/view/nat-stone-programming-projects/collisiongravitatio
 
 This simulator is capable of modelling rigid collisions and gravitation, with related constants such as little g, big G, friction, restitution, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported.
 
-The following is a detailed explanation of every button/control, though most of it is intuitive within the simulator.
+The following is a detailed explanation of every button/control, though most of it is intuitive within the simulator. The below description is clearer when viewed raw.
 
 Positive directions are right and up.
 Press "p" to pause the simulation.
@@ -41,19 +41,30 @@ Click objects to select and drag them.
   Hold "control" to align angles to set increments.
   Click the object in the menu to center on it.
 Click a ball to edit its variables.
-  "vx" is the horizontal velocity of the ball.
-  "vy" is the vertical velocity of the ball.
-  "va" is the angular velocity of the ball, with counterclockwise rotation being positive.
-  "mass" is the mass of the ball.
-  "size" is the diameter of the ball.
-  "moi" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
-  "drag0" is the coefficient of the constant (v⁰) term of drag.
-  "drag1" is the coefficient of the linear (v¹) term of drag.
-  "drag2" is the coefficient of the quadratic (v²) term of drag.
+  Click "general" to edit general ball variables.
+    "color" is the color of the ball.
+    "size" is the diameter of the ball.
+    "mass" is the mass of the ball.
+    "moi" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
+  Click "position" to edit the ball's position.
+    "px" is the horizontal position of the ball.
+    "py" is the vertical position of the ball.
+    "pa" is the angular position of the ball, with counterclockwise rotation being positive.
+  Click "velocity" to edit the ball's velocity.
+    "vx" is the horizontal velocity of the ball.
+    "vy" is the vertical velocity of the ball.
+    "va" is the angular velocity of the ball, with counterclockwise rotation being positive.
+  Click "drag" to edit the ball's drag coefficients.
+    "drag0" is the coefficient of the constant (v⁰) term of drag.
+    "drag1" is the coefficient of the linear (v¹) term of drag.
+    "drag2" is the coefficient of the quadratic (v²) term of drag.
   Click "delete" to delete the ball.
 Click a wall to edit its variables.
-  "wRest" is the coefficient of restitution between the wall and balls.
-  "wFrict" is the coefficient of friction between the wall and balls.
+  Click "general" to edit general wall variables.
+    "color" is the color of the wall.
+    "wRest" is the coefficient of restitution between the wall and balls.
+    "wFrict" is the coefficient of friction between the wall and balls.
+  Click "position" to edit the wall's position and size.
   Click "delete" to delete the wall.
 Click "timing" to edit performance/timing settings.
   "fps" is the maximum frames per second, which is also capped by browser refresh rate (usually 60).
