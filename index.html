@@ -2063,7 +2063,7 @@ function createCircleWall() {
     if (Math.abs(a2 - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
         a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
     }
-    walls.push(new CircleWall(newX1, newY1, Math.min(r1, r2), Math.max(r1, r2), Math.min(a1, a2), Math.max(a1, a2), wRestCoef, wFrictCoef, newColor));
+    walls.push(new CircleWall(newX1, newY1, Math.min(r1, r2), Math.max(r1, r2), a1, a2, wRestCoef, wFrictCoef, newColor));
     newX1 = null;
     newY1 = null;
     newX2 = null;
@@ -3264,10 +3264,10 @@ function show() {
               }
               let a1 = angle(newX1, newY1, newX2, newY2);
               let a2 = alignAngle(a1 + newA);
-              if (Math.abs(a2  - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
+              if (Math.abs(a2 - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
                   a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
               }
-              drawCircleWall(newX1, newY1, r1, r2, Math.min(a1, a2), Math.max(a1, a2), newColor);
+              drawCircleWall(newX1, newY1, r1, r2, a1, a2, newColor);
               break;
           case "l":
               drawListWall(getListWall(newX1, newY1, listWallSize(newX1, newY1, mouseX, mouseY), newColor).walls);
