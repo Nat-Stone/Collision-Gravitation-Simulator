@@ -243,6 +243,14 @@ function angMod(a) {
     }
 }
 
+function angMod2(a) {
+    if (a > 0) {
+        return a % (Math.PI * 4);
+    } else {
+        return a % (Math.PI * 4) + Math.PI * 4;
+    }
+}
+
 function alignNum(n, align = true) {
   return (align && pressedKeys.includes("shift") ? Math.round(n / distInc) * distInc : n);
 }
@@ -395,8 +403,8 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, y, r1, a1, a2);
-  ctx.arc(x, y, r2, a2, a1, true);
+  ctx.arc(x, y, r1, a1, a2, angMod2(a2 - a1) >= Math.PI * 2);
+  ctx.arc(x, y, r2, a2, a1, angMod2(a2 - a1) < Math.PI * 2);
   ctx.fill();
   
   //ctx.strokeStyle = color;
@@ -1229,12 +1237,10 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     this.color = color;
     
     this.setDim = function() {
-      this.angle1 %= Math.PI * 2;
-      this.angle2 %= Math.PI * 2;
       this.r1 = Math.min(this.radius1, this.radius2);
       this.r2 = Math.max(this.radius1, this.radius2);
-      this.a1 = Math.min(this.angle1, this.angle2);
-      this.a2 = Math.max(this.angle1, this.angle2);
+      this.a1 = angMod2(this.angle1);
+      this.a2 = angMod2(this.angle2);
       
       this.ax1 = Math.cos(this.a1);
       this.ay1 = Math.sin(this.a1);
@@ -1264,12 +1270,9 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     }
     
     this.containsPoint = function(x, y) {
-        let distance = dist(this.x, this.y, x, y);
-        
-        let ang = angle(this.x, this.y, x, y);
-        let angDist1 = angMod(ang - w.a1) * distance;
-        let angDist2 = angMod(w.a2 - ang) * distance;
-        return this.r1 <= distance && distance <= this.r2 && (this.a2 - this.a1 == Math.PI * 2 || angDist1 + angDist2 <= distance * Math.PI * 2);
+      let distance = dist(this.x, this.y, x, y);
+      let ang = angMod(angle(this.x, this.y, x, y));
+      return this.r1 <= distance && distance <= this.r2 && (angMod2(ang - this.a1) + angMod2(this.a2 - ang) <= Math.PI * 2 || angMod2(ang - this.a1 + Math.PI * 2) + angMod2(this.a2 - ang + Math.PI * 2) <= 2 * Math.PI);
     }
     
     this.move = function(dx, dy) {
@@ -3036,8 +3039,8 @@ function setup() {
     new MenuButton(3, "general", function() {
       menuType = "wall_general";
     }),
-    new MenuButton(4, "position", function() {
-      menuType = "wall_position_" + dragObj.wallType;
+    new MenuButton(4, "dimensions", function() {
+      menuType = "wall_dimensions_" + dragObj.wallType;
     }),
     new MenuButton(5, "delete", deleteDragObj),
   ];
@@ -3069,7 +3072,7 @@ function setup() {
     }),
   ];
   
-  menuValues.wall_position_rect = [
+  menuValues.wall_dimensions_rect = [
     new MenuButton(2, "wall", function() {
       menuType = "wall";
     }),
@@ -3095,7 +3098,7 @@ function setup() {
     }),
   ];
   
-  menuValues.wall_position_tri = [
+  menuValues.wall_dimensions_tri = [
     new MenuButton(2, "wall", function() {
       menuType = "wall";
     }),
@@ -3125,7 +3128,7 @@ function setup() {
     }),
   ];
   
-  menuValues.wall_position_circle = [
+  menuValues.wall_dimensions_circle = [
     new MenuButton(2, "wall", function() {
       menuType = "wall";
     }),
@@ -3155,7 +3158,7 @@ function setup() {
     }),
   ];
   
-  menuValues.wall_position_list = [
+  menuValues.wall_dimensions_list = [
     new MenuButton(2, "wall", function() {
       menuType = "wall";
     }),
