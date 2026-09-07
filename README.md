@@ -12,7 +12,7 @@ Press "r" to reset.
   Press "r" once to remove all balls.
   Press "r" twice (or when there are no balls) to remove all walls.
 Click arrows, "+", "-", "<", and ">" to change the simulation viewport or speed.
-  Click arrows to move the veiwpoint.
+  Click arrows to move the veiwport.
   Click "-" to zoom out.
   Click "+" to zoom in.
   Click "<" to slow down the simulation.
@@ -62,8 +62,8 @@ Click a ball to edit its variables.
 Click a wall to edit its variables.
   Click "general" to edit general wall variables.
     "color" is the color of the wall.
-    "wRest" is the coefficient of restitution between the wall and balls.
-    "wFrict" is the coefficient of friction between the wall and balls.
+    "w rest" is the coefficient of restitution between the wall and balls.
+    "w frict" is the coefficient of friction between the wall and balls.
   Click "position" to edit the wall's position and size.
   Click "delete" to delete the wall.
 Click "timing" to edit performance/timing settings.
@@ -93,8 +93,8 @@ Click "presets" to select simulation presets.
     Click "slope labs" to view slope-related demos.
       "mass (g>r)" contains two balls (the green ball's mass is twice the red ball's mass) rolling down equivalent slopes.
       "radius (g>r)" contains two balls (the green ball's radius is twice the red ball's radius) rolling down equivalent slopes.
+      "disk (r) vs ring (g)" contains a red disk (moi=0.5) and a green ring (moi=1) that roll down a equivalent slopes.
       "smooth vs rough" contains a red ball that slides (μ=0) and a green ball that rolls (μ>0) down a equivalent slopes.
-      "disk vs ring" contains a red disk (moi=0.5) and a green ring (moi=1) that roll down a equivalent slopes.
       "height for loop" contains 7 balls that roll down a slope, but only some complete the full loop.
     Click "orbit labs" to view orbit-related demos.
       "mass (g>r)" contains two balls (the green ball's mass is twice the red ball's mass) orbiting a star.
