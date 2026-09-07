@@ -1,7 +1,7 @@
 # Collision/Gravitation Simulator
 https://sites.google.com/view/nat-stone-programming-projects/collisiongravitation-simulator
 
-This simulator is capable of modelling rigid collisions and gravitation, with related constants such as little g, big G, friction, restitution, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported.
+This simulator is capable of modelling rigid collisions and gravitation, with related constants such as little g, big G, friction, restitution, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported. Test your knowledge with the slope demo presets; which balls will reach the bottom first?
 
 The following is a detailed explanation of every button/control, though most of it is intuitive within the simulator. The below description is clearer when viewed raw.
 
@@ -47,8 +47,8 @@ Click a ball to edit its variables.
     "mass" is the mass of the ball.
     "moi" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
   Click "position" to edit the ball's position.
-    "px" is the horizontal position of the ball.
-    "py" is the vertical position of the ball.
+    "px" is the horizontal position of the ball, relative to the closest point on dist inc lattice to the left of the screen.
+    "py" is the vertical position of the ball, relative to the closest point on dist inc lattice to the bottom of the screen.
     "pa" is the angular position of the ball, with counterclockwise rotation being positive.
   Click "velocity" to edit the ball's velocity.
     "vx" is the horizontal velocity of the ball.
@@ -74,15 +74,31 @@ Click "timing" to edit performance/timing settings.
   "time" is the time the simulator has run for (or since last change).
   "end time" is the time at which the simulator will stop, if non-negative.
 Click "presets" to select simulation presets.
-  Click "save" to save the current simulation state as a preset.
-  "empty" is empty with no gravity.
-  "small" is empty with downward gravity.
-  "large" is empty with gravity between balls.
-  "box" has box walls.
-  "orbit" has to balls with the masses and distances of the Earth orbitting the Sun.
   Click a preset to apply it.
   While holding "shift", click a preset to edit its title.
-  While holding "control", press "backspace" to delete a preset while editting it.
+  While editing a preset and holding "control", press "backspace" to delete it.
+  While holding "control", click a preset to copy it.
+  Click "save" to save the current simulation state as a preset.
+  While holding "control", click "save" to paste a copied preset.
+  Click "demos" to see demo presets.
+    Click "general" to see general demos.
+      "empty" is empty with no gravity.
+      "small" is empty with downward gravity.
+      "large" is empty with gravity between balls.
+      "box" has box walls.
+      "orbit" has to balls with the masses and distances of the Earth orbiting the Sun.
+    Click "collision labs" to view collision-related demos.
+      "random" creates two random balls that collide at the center of the screen.
+      "Newton's cradle" contains 3 2d systems that model Newton's cradle.
+    Click "slope labs" to view slope-related demos.
+      "mass (g>r)" contains two balls (the green ball's mass is twice the red ball's mass) rolling down equivalent slopes.
+      "radius (g>r)" contains two balls (the green ball's radius is twice the red ball's radius) rolling down equivalent slopes.
+      "smooth vs rough" contains a red ball that slides (μ=0) and a green ball that rolls (μ>0) down a equivalent slopes.
+      "disk vs ring" contains a red disk (moi=0.5) and a green ring (moi=1) that roll down a equivalent slopes.
+      "height for loop" contains 7 balls that roll down a slope, but only some complete the full loop.
+    Click "orbit labs" to view orbit-related demos.
+      "mass (g>r)" contains two balls (the green ball's mass is twice the red ball's mass) orbiting a star.
+      "distance (g>r)" contains two balls (the green ball's distance is twice the red ball's distance) orbiting a star. 
 Click "objects" to change creation mode or reset.
   "ball" creates balls.
   "rectangle wall" creates rectangular walls.
@@ -113,7 +129,7 @@ Click "variables" to edit simulation variables.
   "wind vy" is the vertical component of wind velocity, which drag is relative to.
   "collide" is whether or not balls collide with other balls.
 Click "info" to view the simulation information.
-  "px" is the total horizontal momentum of balls in the simulation.
-  "py" is the total vertical momentum of balls in the simulation.
+  "mom x" is the total horizontal momentum of balls in the simulation.
+  "mom y" is the total vertical momentum of balls in the simulation.
   "kinetic" is the total translational and rotational kinetic energy of balls in the simulation.
-  "energy" is the total energy of the simulation (translational kinetic, rotational kinetic, potential due to uniform gravity (relative to the bottom left of the screen), and potential due to gravity between balls).
+  "energy" is the total energy of the simulation (translational kinetic, rotational kinetic, potential due to uniform gravity (relative to the closest point on the dist inc lattice to the bottom left of the screen), and potential due to gravity between balls).
