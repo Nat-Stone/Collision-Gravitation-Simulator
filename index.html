@@ -49,7 +49,7 @@ const ctxMenu = menu.getContext("2d");
 
 var pWidth;
 var pHeight;
-var gameWidth;;
+var gameWidth;
 var scaleFactor;
 
 const eps = 10 ** -6;
@@ -58,7 +58,7 @@ var gameHeight = 10;
 var screenX = 0;
 var screenY = 0;
 var fps = 60;
-var upf = 20
+var upf = 100;
 var speed = 1;
 const dragVTime = 1 / 10;
 const minDrag = 2;
@@ -208,7 +208,7 @@ function zoom(factor, x, y) {
 }
 
 function setMenuHeight() {
-  let num = getMenuValues().length + (dragObj == null ? 0 : 2);
+  let num = getMenuValues().length + (menuBallShown() || menuWallShown() ? 2 : 0);
   menuHeight = Math.max(window.innerHeight, menu.width * (14 * num + 4) / 40);
   if (menu.innerHeight != menuHeight) {
     menu.height = menuHeight;
@@ -217,6 +217,14 @@ function setMenuHeight() {
 
 function getMenuValues() {
   return menuValues[menuType];
+}
+
+function menuBallShown() {
+  return menuType.includes("ball") && menuType != "ball_main";
+}
+
+function menuWallShown() {
+  return menuType.includes("wall") && menuType != "wall_main";
 }
 
 function dist(x1, y1, x2, y2) {
@@ -403,19 +411,12 @@ function drawCircleWall(x, y, r1, r2, a1, a2, color, ctx = ctxMain) {
   
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, y, r1, a1, a2, angMod2(a2 - a1) >= Math.PI * 2);
-  ctx.arc(x, y, r2, a2, a1, angMod2(a2 - a1) < Math.PI * 2);
+  a1 = Math.round(a1 / eps) * eps;
+  a2 = Math.round(a2 / eps) * eps;
+  let da = angMod2(a2 - a1);
+  ctx.arc(x, y, r1, a1, a2, da >= Math.PI * 2);
+  ctx.arc(x, y, r2, a2, a1, da < Math.PI * 2);
   ctx.fill();
-  
-  //ctx.strokeStyle = color;
-  //ctx.lineWidth = Math.abs(r2 - r1);
-  //ctx.lineCap = "but" + "t";
-  //ctx.strokeStyle = color;
-  //ctx.lineWidth = Math.abs(r2 - r1);
-  //ctx.lineCap = "but" + "t";
-  //ctx.beginPath();
-  //ctx.arc(x, y, (r1 + r2) / 2, a1, a2);
-  //ctx.stroke();
 }
 
 function drawListWall(wList, ctx = ctxMain) {
@@ -1239,8 +1240,8 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     this.setDim = function() {
       this.r1 = Math.min(this.radius1, this.radius2);
       this.r2 = Math.max(this.radius1, this.radius2);
-      this.a1 = angMod2(this.angle1);
-      this.a2 = angMod2(this.angle2);
+      this.a1 = Math.round(angMod2(this.angle1) / eps) * eps;
+      this.a2 = Math.round(angMod2(this.angle2) / eps) * eps;
       
       this.ax1 = Math.cos(this.a1);
       this.ay1 = Math.sin(this.a1);
@@ -1254,25 +1255,43 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
       this.centerY = this.y;
       this.angle = this.a1;
       
-      let maxX = (Math.ceil(this.a1 / Math.PI / 2) == Math.floor(this.a2 / Math.PI / 2) ? this.r2 : Math.max(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
-      let minX = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 2) == Math.floor(this.a2 / Math.PI / 2 - 1 / 2) ? -this.r2 : Math.min(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
-      let maxY = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 4) == Math.floor(this.a2 / Math.PI / 2 - 1 / 4) ? this.r2 : Math.max(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
-      let minY = (Math.ceil(this.a1 / Math.PI / 2 - 3 / 4) == Math.floor(this.a2 / Math.PI / 2 - 3 / 4) ? -this.r2 : Math.min(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
-      this.offsetX = (maxX + minX) / 2;
-      this.offsetY = (maxY + minY) / 2;
+      let minX;
+      let maxX;
+      if (this.ax1 <= this.ax2) {
+        minX = this.containsAngle(Math.PI) ? -this.r2 : this.ax1 * (this.ax1 >= 0 ? this.r1 : this.r2);
+        maxX = this.containsAngle(0) ? this.r2 : this.ax2 * (this.ax2 <= 0 ? this.r1 : this.r2);
+      } else {
+        minX = this.containsAngle(Math.PI) ? -this.r2 : this.ax2 * (this.ax2 >= 0 ? this.r1 : this.r2);
+        maxX = this.containsAngle(0) ? this.r2 : this.ax1 * (this.ax1 <= 0 ? this.r1 : this.r2);
+      }
+      let minY;
+      let maxY;
+      if (this.ay1 <= this.ay2) {
+        minY = this.containsAngle(Math.PI * 3 / 2) ? -this.r2 : this.ay1 * (this.ay1 >= 0 ? this.r1 : this.r2);
+        maxY = this.containsAngle(Math.PI / 2) ? this.r2 : this.ay2 * (this.ay2 <= 0 ? this.r1 : this.r2);
+      } else {
+        minY = this.containsAngle(Math.PI * 3 / 2) ? -this.r2 : this.ay2 * (this.ay2 >= 0 ? this.r1 : this.r2);
+        maxY = this.containsAngle(Math.PI / 2) ? this.r2 : this.ay1 * (this.ay1 <= 0 ? this.r1 : this.r2);
+      }
+      
+      this.offsetX = (minX + maxX) / 2;
+      this.offsetY = (minY + maxY) / 2;
       this.offsetSize = Math.max(maxX - minX, maxY - minY);
     }
     
-    this.setDim();
-    
     this.show = function() {
-        drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
+      drawCircleWall(this.x, this.y, this.r1, this.r2, this.a1, this.a2, this.color);
+    }
+    
+    this.containsAngle = function(a) {
+      let angDist1 = angMod2(a - this.a1) + angMod2(this.a2 - a);
+      let angDist2 = angMod2(a - this.a1 + Math.PI * 2) + angMod2(this.a2 - a + Math.PI * 2);
+      return angDist1 <= Math.PI * 2 || angDist1 > Math.PI * 6 || angDist2 <= Math.PI * 2 || angDist2 > Math.PI * 6;
     }
     
     this.containsPoint = function(x, y) {
       let distance = dist(this.x, this.y, x, y);
-      let ang = angMod(angle(this.x, this.y, x, y));
-      return this.r1 <= distance && distance <= this.r2 && (angMod2(ang - this.a1) + angMod2(this.a2 - ang) <= Math.PI * 2 || angMod2(ang - this.a1 + Math.PI * 2) + angMod2(this.a2 - ang + Math.PI * 2) <= 2 * Math.PI);
+      return this.r1 <= distance && distance <= this.r2 && this.containsAngle(angMod(angle(this.x, this.y, x, y)));
     }
     
     this.move = function(dx, dy) {
@@ -1283,30 +1302,12 @@ function CircleWall(x, y, r1, r2, a1, a2, wRest, wFrict, color) {
     }
     
     this.rotate = function(da) {
-        this.a1 += da;
-        this.a2 += da;
-        this.a2 -= Math.floor(this.a1 / Math.PI / 2) * Math.PI * 2;
-        this.a1 -= Math.floor(this.a1 / Math.PI / 2) * Math.PI * 2;
-        
-        this.ax1 = Math.cos(this.a1);
-        this.ay1 = Math.sin(this.a1);
-        this.ax2 = Math.cos(this.a2);
-        this.ay2 = Math.sin(this.a2);
-        this.normalX1 = this.ay1;
-        this.normalY1 = -this.ax1;
-        this.normalX2 = -this.ay2;
-        this.normalY2 = this.ax2;
-        
-        let maxX = (Math.ceil(this.a1 / Math.PI / 2) == Math.floor(this.a2 / Math.PI / 2) ? this.r2 : Math.max(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
-        let minX = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 2) == Math.floor(this.a2 / Math.PI / 2 - 1 / 2) ? -this.r2 : Math.min(this.r1 * this.ax1, this.r1 * this.ax2, this.r2 * this.ax1, this.r2 * this.ax2));
-        let maxY = (Math.ceil(this.a1 / Math.PI / 2 - 1 / 4) == Math.floor(this.a2 / Math.PI / 2 - 1 / 4) ? this.r2 : Math.max(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
-        let minY = (Math.ceil(this.a1 / Math.PI / 2 - 3 / 4) == Math.floor(this.a2 / Math.PI / 2 - 3 / 4) ? -this.r2 : Math.min(this.r1 * this.ay1, this.r1 * this.ay2, this.r2 * this.ay1, this.r2 * this.ay2));
-        this.offsetX = (maxX + minX) / 2;
-        this.offsetY = (maxY + minY) / 2;
-        this.offsetSize = Math.max(maxX - minX, maxY - minY);
-        
-        this.angle = this.a1;
+      this.angle1 = angMod2(this.a1 + da);
+      this.angle2 = angMod2(this.a2 + da);
+      this.setDim();
     }
+    
+    this.setDim();
 }
 
 function ListWall(wList) {
@@ -1435,15 +1436,14 @@ function ListWall(wList) {
 function Preset(title, settings, objects, func) {
   this.title = title;
   this.settings = settings;
-  this.objects = (objects == undefined ? [] : objects);
-  this.func = (func == undefined ? function() {} : func);
-  //idk why these don't save
+  this.objects = objects ?? [];
+  this.func = func ?? function() {};
   
   this.set = function() {
     
     gameTime = 0;
     dragObj = null;
-    if (menuType.includes("_")) menuType = "main";
+    if (menuType.includes("ball") || menuType.includes("wall")) gotoMenu("main");
     if (newX1 != null) {
       newX1 = null;
       newY1 = null;
@@ -1618,9 +1618,18 @@ function MenuPreset(n, clickable, preset) {
   }
   
   this.click = function () {
-    if (pressedKeys.includes("shift")) {
-      this.clicked = true;
-      this.newTitle = "";
+    if (pressedKeys.includes("control")) {
+      navigator.clipboard.writeText(JSON.stringify({
+        "title": this.preset.title,
+        "settings": this.preset.settings,
+        "objects": this.preset.objects,
+        "func": this.preset.func.toString(),
+      }));
+    } else if (pressedKeys.includes("shift")) {
+      if (this.clickable) {
+        this.clicked = true;
+        this.newTitle = "";
+      }
     } else {
       this.preset.set();
     }
@@ -1953,15 +1962,18 @@ function MenuString(n, title, clickable, get, set) {
   
 }
 
+function gotoMenu(type) {
+  menuType = type;
+  document.getElementById("scroll").scrollTop = 0;
+}
+
 function gotoMainMenu() {
-  menuType = (dragObj == null ? "main" : (dragObj.wallType == undefined ? "ball_main" : "wall_main"));
+  gotoMenu(dragObj == null ? "main" : (dragObj.wallType == undefined ? "ball_main" : "wall_main"));
 }
 
 function listWallSize(x, y, mx, my) {
-    //////use distance
-    let pn = Math.floor((x.length - 1) * 9 / 10);
-                //document.getElementById("p").innerHTML += ((mx - x[pn]) * (y[pn] - y[x.length - 1]) + (my - y[pn]) * (x[x.length - 1] - x[pn])) / dist(x[pn], y[pn], x[x.length - 1], y[x.length - 1]);
-    return ((mx - x[pn]) * (y[pn] - y[x.length - 1]) + (my - y[pn]) * (x[x.length - 1] - x[pn])) / dist(x[pn], y[pn], x[x.length - 1], y[x.length - 1]);
+  let pn = Math.floor((x.length - 1) * 9 / 10);
+  return ((mx - x[pn]) * (y[pn] - y[x.length - 1]) + (my - y[pn]) * (x[x.length - 1] - x[pn])) / dist(x[pn], y[pn], x[x.length - 1], y[x.length - 1]);
 }
 
 function getListWall(x, y, size, color) {
@@ -2173,7 +2185,7 @@ function checkClick() {
     } else if (dragObj != null) {
         drag();
         dragObj = null;
-        menuType = "main";
+        gotoMenu("main");
     } else {
         return false;
     }
@@ -2182,11 +2194,11 @@ function checkClick() {
 
 function updateMenuObjHover() {
   if (dragObj != null) {
-    if (menuType.includes("ball") && menuType != "ball_main") {
-      menuObjHovered = dist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= menu.width * 3 / 10 * (menuObjHovered ? 1.08 : 1);
-    } else if (menuType.includes("wall") && menuType != "wall_main") {
+    if (menuBallShown()) {
+      menuObjHovered = sqdist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= (menu.width * 3 / 10 * (menuObjHovered ? 1.08 : 1)) ** 2;
+    } else if (menuWallShown()) {
       let sizeScale = dragObj.offsetSize / menu.width / 3 * 5 / (menuObjHovered ? 1.08 : 1);
-      menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * sizeScale + dragObj.centerX + dragObj.offsetX, (menu.width * 2 / 5 - clientY) * sizeScale + dragObj.centerY + dragObj.offsetY);
+      menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * sizeScale + dragObj.centerX + dragObj.offsetX, (menu.width * 2 / 5 - clientY - document.getElementById("scroll").scrollTop) * sizeScale + dragObj.centerY + dragObj.offsetY);
     }
   }
 }
@@ -2199,7 +2211,7 @@ function deleteDragObj() {
           walls.splice(walls.indexOf(dragObj), 1);
       }
       dragObj = null;
-      menuType = "main";
+      gotoMenu("main");
   } else if (newX1 != null) {
       newX1 = null;
       newY1 = null;
@@ -2288,13 +2300,13 @@ function setListWallMode() {
 function resetObjects() {
   if (balls.length == 0) {
     dragObj = null;
-    menuType = "main";
+    gotoMenu("main");
     walls = [];
   } else {
     if (dragObj != null) {
       if (dragObj.wallType == undefined) {
         dragObj = null;
-        menuType = "main";
+        gotoMenu("main");
       }
     }
     balls = [];
@@ -2473,7 +2485,7 @@ main.onmousedown = function(event) {
                     dragOffsetA = dragObj.pa - angle(dragObj.px, dragObj.py, mouseX, mouseY);
                     dragva = [];
                 }
-                menuType = "ball";
+                gotoMenu("ball");
             }
         }
         
@@ -2487,7 +2499,7 @@ main.onmousedown = function(event) {
                     } else if (dragMode == false) {
                         dragOffsetA = dragObj.angle - angle(dragObj.centerX, dragObj.centerY, mouseX, mouseY);
                     }
-                    menuType = "wall";
+                    gotoMenu("wall");
                 }
             }
         }
@@ -2570,22 +2582,22 @@ function setup() {
   
   menuValues.main = [
     new MenuButton(0, "timing", function() {
-      menuType = "timing";
+      gotoMenu("timing");
     }),
     new MenuButton(1, "presets", function() {
-      menuType = "presets";
+      gotoMenu("presets");
     }),
     new MenuButton(2, "objects", function() {
-      menuType = "objects";
+      gotoMenu("objects");
     }),
     new MenuButton(3, "defaults", function() {
-      menuType = "defaults";
+      gotoMenu("defaults");
     }),
     new MenuButton(4, "variables", function() {
-      menuType = "variables";
+      gotoMenu("variables");
     }),
     new MenuButton(5, "info", function() {
-      menuType = "info";
+      gotoMenu("info");
     }),
   ];
   
@@ -2611,8 +2623,10 @@ function setup() {
       "endTime": -1,
       "speed": 1,
       "height": 10,
-      "x": 0,
-      "y": 0,
+      "screenX": 0,
+      "screenY": 0,
+      "distOffsetX": distOffsetX,
+      "distOffsetY": distOffsetY,
       "G": 0,
       "gx": 0,
       "gy": 0,
@@ -2635,124 +2649,166 @@ function setup() {
   menuValues.presets = [
     new MenuButton(0, "main", gotoMainMenu),
     new MenuButton(1, "save", function() {
-      let n = 0;
-      let found;
-      while (true) {
-        n += 1;
-        found = false;
-        for (p of menuValues.presets) {
-          if (p.preset != undefined) {
-            if (p.preset.title == "preset " + n) {
-              found = true;
-              break;
+      
+      if (pressedKeys.includes("control")) {
+        
+        navigator.clipboard.readText().then((rawPreset) => {
+          try {
+            let preset = JSON.parse(rawPreset);
+            menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset(preset.title, preset.settings, preset.objects, new Function(preset.func.substring(preset.func.indexOf("{") + 1, preset.func.length - 1)))));
+          } catch (error) {}
+        });
+        
+      } else {
+        
+        let n = 0;
+        let found;
+        while (true) {
+          n += 1;
+          found = false;
+          for (p of menuValues.presets) {
+            if (p.preset != undefined) {
+              if (p.preset.title == "preset " + n) {
+                found = true;
+                break;
+              }
             }
           }
+          if (!found) {
+            break;
+          }
         }
-        if (!found) {
-          break;
+        
+        let objects = [];
+        for (let b of balls) {
+          objects.push({
+            "type": "ball",
+            "px": b.px,
+            "py": b.py,
+            "pa": b.pa,
+            "vx": b.vx,
+            "vy": b.vy,
+            "va": b.va,
+            "mass": b.mass,
+            "size": b.size,
+            "moiCoef": b.moiCoef,
+            "drag0": b.drag0,
+            "drag1": b.drag1,
+            "drag2": b.drag2,
+            "color": b.color
+          });
         }
+        for (let w of walls) {
+          switch (w.wallType) {
+            case "rect":
+              objects.push({
+                "type": "rectWall",
+                "x1": w.x1, 
+                "y1": w.y1, 
+                "x2": w.x2, 
+                "y2": w.y2, 
+                "size": w.size, 
+                "wRest": w.wRest,
+                "wFrict": w.wFrict,
+                "color": w.color
+              });
+              break;
+            case "tri":
+              objects.push({
+                "type": "triWall",
+                "x": w.x, 
+                "y": w.y, 
+                "wRest": w.wRest,
+                "wFrict": w.wFrict,
+                "color": w.color
+              });
+              break;
+            case "circle":
+              objects.push({
+                "type": "circleWall",
+                "x": w.x, 
+                "y": w.y, 
+                "r1": w.r1, 
+                "r2": w.r2, 
+                "a1": w.a1, 
+                "a2": w.a2, 
+                "wRest": w.wRest,
+                "wFrict": w.wFrict,
+                "color": w.color
+              });
+              break;
+            case "list":
+              objects.push({
+                "type": "listWall",
+                "wList": w.walls
+              });
+              break;
+          }
+        }
+        
+        menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
+          "endTime": endTime,
+          "speed": speed,
+          "height": gameHeight,
+          "screenX": screenX,
+          "screenY": screenY,
+          "distOffsetX": distOffsetX,
+          "distOffsetY": distOffsetY,
+          "G": G,
+          "gx": gx,
+          "gy": gy,
+          "bRestCoef": bRestCoef,
+          "bFrictCoef": bFrictCoef,
+          "windVX": windVX,
+          "windVY": windVY,
+          "collide": collide,
+          "density": density,
+          "moiCoef": moiCoef,
+          "wRestCoef": wRestCoef,
+          "wFrictCoef": wFrictCoef,
+          "drag0": dragCoef0,
+          "drag1": dragCoef1,
+          "drag2": dragCoef2,
+          "distInc": distInc,
+          "angInc": angInc
+        }, objects)));
+        
       }
       
-      let objects = [];
-      for (let b of balls) {
-        objects.push({
-          "type": "ball",
-          "px": b.px,
-          "py": b.py,
-          "pa": b.pa,
-          "vx": b.vx,
-          "vy": b.vy,
-          "va": b.va,
-          "mass": b.mass,
-          "size": b.size,
-          "moiCoef": b.moiCoef,
-          "drag0": b.drag0,
-          "drag1": b.drag1,
-          "drag2": b.drag2,
-          "color": b.color
-        });
-      }
-      for (let w of walls) {
-        switch (w.wallType) {
-          case "rect":
-            objects.push({
-              "type": "rectWall",
-              "x1": w.x1, 
-              "y1": w.y1, 
-              "x2": w.x2, 
-              "y2": w.y2, 
-              "size": w.size, 
-              "wRest": w.wRest,
-              "wFrict": w.wFrict,
-              "color": w.color
-            });
-            break;
-          case "tri":
-            objects.push({
-              "type": "triWall",
-              "x": w.x, 
-              "y": w.y, 
-              "wRest": w.wRest,
-              "wFrict": w.wFrict,
-              "color": w.color
-            });
-            break;
-          case "circle":
-            objects.push({
-              "type": "circleWall",
-              "x": w.x, 
-              "y": w.y, 
-              "r1": w.r1, 
-              "r2": w.r2, 
-              "a1": w.a1, 
-              "a2": w.a2, 
-              "wRest": w.wRest,
-              "wFrict": w.wFrict,
-              "color": w.color
-            });
-            break;
-          case "list":
-            objects.push({
-              "type": "listWall",
-              "wList": w.walls
-            });
-            break;
-        }
-      }
-      
-      menuValues.presets.push(new MenuPreset(menuValues.presets.length, true, new Preset("preset " + n, {
-        "endTime": endTime,
-        "speed": speed,
-        "height": gameHeight,
-        "screenX": screenX,
-        "screenY": screenY,
-        "distOffsetX": distOffsetX,
-        "distOffsetY": distOffsetY,
-        "G": G,
-        "gx": gx,
-        "gy": gy,
-        "bRestCoef": bRestCoef,
-        "bFrictCoef": bFrictCoef,
-        "windVX": windVX,
-        "windVY": windVY,
-        "collide": collide,
-        "density": density,
-        "moiCoef": moiCoef,
-        "wRestCoef": wRestCoef,
-        "wFrictCoef": wFrictCoef,
-        "drag0": dragCoef0,
-        "drag1": dragCoef1,
-        "drag2": dragCoef2,
-        "distInc": distInc,
-        "angInc": angInc
-      }, objects)));
     }),
-    new MenuPreset(2, true, new Preset("empty", defaultPreset)),
-    new MenuPreset(3, true, new Preset("small", {
+    new MenuButton(2, "demos", function() {
+      gotoMenu("presets_demos");
+    }),
+  ];
+  
+  menuValues.presets_demos = [
+    new MenuButton(0, "presets", function() {
+      gotoMenu("presets");
+    }),
+    new MenuButton(1, "general", function() {
+      gotoMenu("presets_demos_general");
+    }),
+    new MenuButton(2, "collision labs", function() {
+      gotoMenu("presets_demos_collision");
+    }),
+    new MenuButton(3, "slope labs", function() {
+      gotoMenu("presets_demos_slope");
+    }),
+    new MenuButton(4, "orbit labs", function() {
+      gotoMenu("presets_demos_orbit");
+    }),
+  ]
+  
+  menuValues.presets_demos_general = [
+    new MenuButton(0, "demos", function() {
+      gotoMenu("presets_demos");
+    }),
+    new MenuPreset(1, false, new Preset("empty", defaultPreset)),
+    new MenuPreset(2, false, new Preset("small", {
       ...defaultPreset,
       "gy": -9.8
     })),
-    new MenuPreset(4, true, new Preset("large", {
+    new MenuPreset(3, false, new Preset("large", {
       ...defaultPreset,
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
@@ -2760,7 +2816,7 @@ function setup() {
       "density": 10 ** -2,
       "distInc": 5 * 10 ** 10,
     })),
-    new MenuPreset(5, true, new Preset("box", {
+    new MenuPreset(4, false, new Preset("box", {
       ...defaultPreset,
       "height": 12,
       "gy": -9.8
@@ -2773,7 +2829,7 @@ function setup() {
       walls.push(new RectWall(width + 2 + thick, height + 2 + thick, -thick, height + 2 + thick, 1 + thick, 0.99, 0.2, "#000000"));
       walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, 0.99, 0.2, "#000000"));
     })),
-    new MenuPreset(6, true, new Preset("orbit", {
+    new MenuPreset(5, false, new Preset("orbit", {
       ...defaultPreset,
       "speed": 365 * 86400 / 10,
       "height": 10 ** 12,
@@ -2784,7 +2840,50 @@ function setup() {
       balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, -0.089349, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, 0, 0, 0, "red"));
       balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, 0, 0, 0, "green"));
     }))
-  ];
+  ]
+  
+  menuValues.presets_demos_collision = [
+    new MenuButton(0, "demos", function() {
+      gotoMenu("presets_demos");
+    }),
+    new MenuPreset(1, false, new Preset("random", defaultPreset, [], function() {
+      //px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, color
+      let t = Math.random() * 4 + 1;
+      for (let n = 0; n < 2; n++) {
+        let x;
+        let y;
+        if (Math.random() < 0.5) {
+          x = Math.random() < 0.5 ? 0 : gameWidth;
+          y = Math.random() * gameWidth;
+        } else {
+          x = Math.random() * gameWidth;
+          y = Math.random() < 0.5 ? 0 : gameHeight;
+        }
+        let size = Math.random() + 0.25;
+        balls.push(new Ball(x, y, Math.random() * Math.PI * 2, (gameWidth / 2 - x) / t, (gameHeight / 2 - y) / t, (Math.random() * 4 - 2) * Math.PI, density * size ** 3, size, 0.5, 0, 0, 0, randColor()));
+      }
+    })),
+    new MenuPreset(2, false, new Preset("Newton's cradle", {"endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":0,"bRestCoef":1,"bFrictCoef":0,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":1,"wFrictCoef":0,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"type":"ball","px":2,"py":2,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,0,191)"},{"type":"ball","px":4,"py":2,"pa":0,"vx":0.00019702118716124594,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,0,191)"},{"type":"ball","px":5,"py":2,"pa":0,"vx":0.0001970101784573325,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,0,191)"},{"type":"ball","px":6,"py":2,"pa":0,"vx":0.00039012883899245006,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,0,191)"},{"type":"ball","px":7,"py":2,"pa":0,"vx":0.00019603112531174638,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,0,191)"},{"type":"ball","px":5,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":6,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":7,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":2,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":3,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":4,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"ball","px":6,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"ball","px":7,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"ball","px":3,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"ball","px":2,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"rectWall","x1":0,"y1":0,"x2":0,"y2":7,"size":-1,"wRest":1,"wFrict":0,"color":"rgb(0,0,0)"},{"type":"rectWall","x1":10,"y1":0,"x2":10,"y2":7,"size":1,"wRest":1,"wFrict":0,"color":"rgb(0,0,0)"}])),
+  ]
+  
+  menuValues.presets_demos_slope = [
+    new MenuButton(0, "demos", function() {
+      gotoMenu("presets_demos");
+    }),
+    new MenuPreset(1, false, new Preset("mass (g>r)", {"endTime":3,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"type":"ball","px":2.003620753694637,"py":3.2644830147785484,"pa":0,"vx":0,"vy":0,"va":0,"mass":2,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":2.003620753694637,"py":7.264483014778548,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"rectWall","x1":1,"y1":7,"x2":9,"y2":5,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(63,0,0)"},{"type":"rectWall","x1":1,"y1":3,"x2":9,"y2":1,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(0,63,0)"}])),
+    new MenuPreset(2, false, new Preset("radius (g>r)", {"endTime":3,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"type":"ball","px":2.1248885662128036,"py":3.749554264851214,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":2.003620753694637,"py":7.264483014778548,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"rectWall","x1":1,"y1":7,"x2":9,"y2":5,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(63,0,0)"},{"type":"rectWall","x1":1,"y1":3,"x2":9,"y2":1,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(0,63,0)"}])),
+    new MenuPreset(3, false, new Preset("smooth vs rough", {"endTime":2.25,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"type":"ball","px":2.003620753694637,"py":3.2644830147785484,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":2.003620753694637,"py":7.264483014778548,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"rectWall","x1":1,"y1":7,"x2":9,"y2":5,"size":-0.5,"wRest":0.99,"wFrict":0,"color":"rgb(63,0,0)"},{"type":"rectWall","x1":1,"y1":3,"x2":9,"y2":1,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(0,63,0)"}])),
+    new MenuPreset(4, false, new Preset("disk vs ring", {"endTime":3,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"type":"ball","px":2.003620753694637,"py":3.2644830147785484,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":1,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":2.003620753694637,"py":7.264483014778548,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"rectWall","x1":1,"y1":7,"x2":9,"y2":5,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(63,0,0)"},{"type":"rectWall","x1":1,"y1":3,"x2":9,"y2":1,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(0,63,0)"}])),
+    new MenuPreset(5, false, new Preset("height for loop", {"endTime":3.25,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":false,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"type":"ball","px":8.3,"py":3.15,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(127,0,191)"},{"type":"ball","px":7.3,"py":3.9,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(63,63,191)"},{"type":"ball","px":6.3,"py":4.6499999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,191)"},{"type":"ball","px":5.3,"py":5.3999999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":4.3,"py":6.1499999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,191,0)"},{"type":"ball","px":3.3,"py":6.8999999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":2,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,95,0)"},{"type":"ball","px":2.3,"py":7.6499999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"},{"type":"rectWall","x1":1,"y1":8,"x2":9,"y2":2,"size":-0.5,"wRest":0.99,"wFrict":0.2,"color":"rgb(0,0,0)"},{"type":"circleWall","x":10.2,"y":3.6,"r1":2,"r2":2.5,"a1":4.06888608517438,"a2":8.78127506555907,"wRest":0.99,"wFrict":0.2,"color":"rgb(0,0,0)"}])),
+  ]
+  
+  menuValues.presets_demos_orbit = [
+    new MenuButton(0, "demos", function() {
+      gotoMenu("presets_demos");
+    }),
+    new MenuPreset(1, false, new Preset("mass", {"endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":50000000000,"angInc":15}, [{"type":"ball","px":500000000000,"py":500000000000,"pa":0,"vx":0,"vy":-0.089349,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,191,0)"},{"type":"ball","px":650000000000,"py":500000000000,"pa":0,"vx":0,"vy":29783,"va":0,"mass":2e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":350000000000,"py":500000000000,"pa":0,"vx":0,"vy":-29783,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"}])),
+    new MenuPreset(2, false, new Preset("distance", {"endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"wFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":50000000000,"angInc":15}, [{"type":"ball","px":500000000000,"py":500000000000,"pa":0,"vx":0,"vy":-0.089349,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,191,0)"},{"type":"ball","px":800000000000,"py":500000000000,"pa":0,"vx":0,"vy":21060,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(0,191,0)"},{"type":"ball","px":350000000000,"py":500000000000,"pa":0,"vx":0,"vy":-29783,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"color":"rgb(191,0,0)"}])),
+  ]
   
   menuValues.objects = [
     new MenuButton(0, "main", gotoMainMenu),
@@ -2863,14 +2962,14 @@ function setup() {
   
   menuValues.info = [
     new MenuButton(0, "main", gotoMainMenu),
-    new MenuFloat(1, "px", false, function() {
+    new MenuFloat(1, "mom x", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * b.vx;
       }
       return total;
     }),
-    new MenuFloat(2, "py", false, function() {
+    new MenuFloat(2, "mom y", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * b.vy;
@@ -2887,7 +2986,7 @@ function setup() {
     new MenuFloat(4, "energy", false, function() {
       let total = 0;
       for (b of balls) {
-        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * b.px + gy * b.py);
+        total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * (b.px + distOffsetX) + gy * (b.py + distOffsetY));
         if (G != 0) {
           for (b1 of balls) {
             if (b != b1) {
@@ -2902,50 +3001,50 @@ function setup() {
   
   menuValues.ball_main = [
     new MenuButton(0, "ball", function() {
-      menuType = "ball";
+      gotoMenu("ball");
     }),
     new MenuButton(1, "timing", function() {
-      menuType = "timing";
+      gotoMenu("timing");
     }),
     new MenuButton(2, "presets", function() {
-      menuType = "presets";
+      gotoMenu("presets");
     }),
     new MenuButton(3, "objects", function() {
-      menuType = "objects";
+      gotoMenu("objects");
     }),
     new MenuButton(4, "defaults", function() {
-      menuType = "defaults";
+      gotoMenu("defaults");
     }),
     new MenuButton(5, "variables", function() {
-      menuType = "variables";
+      gotoMenu("variables");
     }),
     new MenuButton(6, "info", function() {
-      menuType = "info";
+      gotoMenu("info");
     }),
   ];
   
   menuValues.ball = [
     new MenuButton(2, "main", function() {
-      menuType = "ball_main";
+      gotoMenu("ball_main");
     }),
     new MenuButton(3, "general", function() {
-      menuType = "ball_general";
+      gotoMenu("ball_general");
     }),
     new MenuButton(4, "position", function() {
-      menuType = "ball_position";
+      gotoMenu("ball_position");
     }),
     new MenuButton(5, "velocity", function() {
-      menuType = "ball_velocity";
+      gotoMenu("ball_velocity");
     }),
     new MenuButton(6, "drag", function() {
-      menuType = "ball_drag";
+      gotoMenu("ball_drag");
     }),
     new MenuButton(7, "delete", deleteDragObj),
   ];
   
   menuValues.ball_general = [
     new MenuButton(2, "ball", function() {
-      menuType = "ball";
+      gotoMenu("ball");
     }),
     new MenuString(3, "color", true, () => (stringifyColor(dragObj.color)), function(color1) {
       dragObj.color = formatColor(color1);
@@ -2965,13 +3064,13 @@ function setup() {
   
   menuValues.ball_position = [
     new MenuButton(2, "ball", function() {
-      menuType = "ball";
+      gotoMenu("ball");
     }),
-    new MenuFloat(3, "px", true, () => (dragObj.px), function(px) {
-      dragObj.px = px;
+    new MenuFloat(3, "px", true, () => (dragObj.px + distOffsetX), function(px) {
+      dragObj.px = px - distOffsetX;
     }),
-    new MenuFloat(4, "py", true, () => (dragObj.py), function(py) {
-      dragObj.py = py;
+    new MenuFloat(4, "py", true, () => (dragObj.py + distOffsetY), function(py) {
+      dragObj.py = py - distOffsetY;
     }),
     new MenuFloat(5, "pa", true, () => (dragObj.pa), function(pa) {
       dragObj.pa = pa;
@@ -2980,7 +3079,7 @@ function setup() {
   
   menuValues.ball_velocity = [
     new MenuButton(2, "ball", function() {
-      menuType = "ball";
+      gotoMenu("ball");
     }),
     new MenuFloat(3, "vx", true, () => (dragObj.vx), function(vx) {
       dragObj.vx = vx;
@@ -2995,7 +3094,7 @@ function setup() {
   
   menuValues.ball_drag = [
     new MenuButton(2, "ball", function() {
-      menuType = "ball";
+      gotoMenu("ball");
     }),
     new MenuFloat(3, "drag 0", true, () => (dragObj.drag0), function(drag01) {
       dragObj.drag0 = drag01;
@@ -3010,44 +3109,44 @@ function setup() {
   
   menuValues.wall_main = [
     new MenuButton(0, "wall", function() {
-      menuType = "wall";
+      gotoMenu("wall");
     }),
     new MenuButton(1, "timing", function() {
-      menuType = "timing";
+      gotoMenu("timing");
     }),
     new MenuButton(2, "presets", function() {
-      menuType = "presets";
+      gotoMenu("presets");
     }),
     new MenuButton(3, "objects", function() {
-      menuType = "objects";
+      gotoMenu("objects");
     }),
     new MenuButton(4, "defaults", function() {
-      menuType = "defaults";
+      gotoMenu("defaults");
     }),
     new MenuButton(5, "variables", function() {
-      menuType = "variables";
+      gotoMenu("variables");
     }),
     new MenuButton(6, "info", function() {
-      menuType = "info";
+      gotoMenu("info");
     }),
   ];
   
   menuValues.wall = [
     new MenuButton(2, "main", function() {
-      menuType = "wall_main";
+      gotoMenu("wall_main");
     }),
     new MenuButton(3, "general", function() {
-      menuType = "wall_general";
+      gotoMenu("wall_general");
     }),
     new MenuButton(4, "dimensions", function() {
-      menuType = "wall_dimensions_" + dragObj.wallType;
+      gotoMenu("wall_dimensions_" + dragObj.wallType);
     }),
     new MenuButton(5, "delete", deleteDragObj),
   ];
   
   menuValues.wall_general = [
     new MenuButton(2, "wall", function() {
-      menuType = "wall";
+      gotoMenu("wall");
     }),
     new MenuString(3, "color", true, () => (stringifyColor(dragObj.color)), function(color1) {
       if (dragObj.wallType == "list") {
@@ -3074,22 +3173,22 @@ function setup() {
   
   menuValues.wall_dimensions_rect = [
     new MenuButton(2, "wall", function() {
-      menuType = "wall";
+      gotoMenu("wall");
     }),
-    new MenuFloat(3, "x1", true, () => (dragObj.x1), function(x1) {
-      dragObj.x1 = x1;
+    new MenuFloat(3, "x1", true, () => (dragObj.x1 + distOffsetX), function(x1) {
+      dragObj.x1 = x1 - distOffsetX;
       dragObj.setDim();
     }),
-    new MenuFloat(4, "y1", true, () => (dragObj.y1), function(y1) {
-      dragObj.y1 = y1;
+    new MenuFloat(4, "y1", true, () => (dragObj.y1 + distOffsetY), function(y1) {
+      dragObj.y1 = y1 - distOffsetY;
       dragObj.setDim();
     }),
-    new MenuFloat(5, "x2", true, () => (dragObj.x2), function(x2) {
-      dragObj.x2 = x2;
+    new MenuFloat(5, "x2", true, () => (dragObj.x2 + distOffsetX), function(x2) {
+      dragObj.x2 = x2 - distOffsetX;
       dragObj.setDim();
     }),
-    new MenuFloat(6, "y2", true, () => (dragObj.y2), function(y2) {
-      dragObj.y2 = y2;
+    new MenuFloat(6, "y2", true, () => (dragObj.y2 + distOffsetY), function(y2) {
+      dragObj.y2 = y2 - distOffsetY;
       dragObj.setDim();
     }),
     new MenuFloat(7, "size", true, () => (dragObj.size), function(size) {
@@ -3100,44 +3199,44 @@ function setup() {
   
   menuValues.wall_dimensions_tri = [
     new MenuButton(2, "wall", function() {
-      menuType = "wall";
+      gotoMenu("wall");
     }),
-    new MenuFloat(3, "x1", true, () => (dragObj.x[0]), function(x1) {
-      dragObj.x[0] = x1;
+    new MenuFloat(3, "x1", true, () => (dragObj.x[0] + distOffsetX), function(x1) {
+      dragObj.x[0] = x1 - distOffsetX;
       dragObj.setDim();
     }),
-    new MenuFloat(4, "y1", true, () => (dragObj.y[0]), function(y1) {
-      dragObj.y[0] = y1;
+    new MenuFloat(4, "y1", true, () => (dragObj.y[0] + distOffsetY), function(y1) {
+      dragObj.y[0] = y1 - distOffsetY;
       dragObj.setDim();
     }),
-    new MenuFloat(5, "x2", true, () => (dragObj.x[1]), function(x2) {
-      dragObj.x[1] = x2;
+    new MenuFloat(5, "x2", true, () => (dragObj.x[1] + distOffsetX), function(x2) {
+      dragObj.x[1] = x2 - distOffsetX;
       dragObj.setDim();
     }),
-    new MenuFloat(6, "y2", true, () => (dragObj.y[1]), function(y2) {
-      dragObj.y[1] = y2;
+    new MenuFloat(6, "y2", true, () => (dragObj.y[1] + distOffsetY), function(y2) {
+      dragObj.y[1] = y2 - distOffsetY;
       dragObj.setDim();
     }),
-    new MenuFloat(7, "x2", true, () => (dragObj.x[2]), function(x3) {
-      dragObj.x[2] = x3;
+    new MenuFloat(7, "x2", true, () => (dragObj.x[2] + distOffsetX), function(x3) {
+      dragObj.x[2] = x3 - distOffsetX;
       dragObj.setDim();
     }),
-    new MenuFloat(8, "y2", true, () => (dragObj.y[2]), function(y3) {
-      dragObj.y[2] = y3;
+    new MenuFloat(8, "y2", true, () => (dragObj.y[2] + distOffsetY), function(y3) {
+      dragObj.y[2] = y3 - distOffsetY;
       dragObj.setDim();
     }),
   ];
   
   menuValues.wall_dimensions_circle = [
     new MenuButton(2, "wall", function() {
-      menuType = "wall";
+      gotoMenu("wall");
     }),
-    new MenuFloat(3, "x", true, () => (dragObj.x), function(x) {
-      dragObj.x = x;
+    new MenuFloat(3, "x", true, () => (dragObj.x + distOffsetX), function(x) {
+      dragObj.x = x - distOffsetX;
       dragObj.setDim();
     }),
-    new MenuFloat(4, "y", true, () => (dragObj.y), function(y) {
-      dragObj.y = y;
+    new MenuFloat(4, "y", true, () => (dragObj.y + distOffsetY), function(y) {
+      dragObj.y = y - distOffsetY;
       dragObj.setDim();
     }),
     new MenuFloat(5, "r1", true, () => (dragObj.radius1), function(r1) {
@@ -3160,13 +3259,13 @@ function setup() {
   
   menuValues.wall_dimensions_list = [
     new MenuButton(2, "wall", function() {
-      menuType = "wall";
+      gotoMenu("wall");
     }),
-    new MenuFloat(3, "x", true, () => (dragObj.centerX), function(x) {
-      dragObj.move(x - dragObj.centerX, 0);
+    new MenuFloat(3, "x", true, () => (dragObj.centerX + distOffsetX), function(x) {
+      dragObj.move(x - dragObj.centerX - distOffsetX, 0);
     }),
-    new MenuFloat(4, "y", true, () => (dragObj.centerY), function(y) {
-      dragObj.move(0, y - dragObj.centerY);
+    new MenuFloat(4, "y", true, () => (dragObj.centerY + distOffsetY), function(y) {
+      dragObj.move(0, y - dragObj.centerY - distOffsetY);
     }),
     new MenuFloat(5, "a", true, () => (dragObj.angle * 180 / Math.PI), function(a) {
       dragObj.rotate(a * Math.PI / 180 - dragObj.angle);
@@ -3332,9 +3431,9 @@ function showMenu() {
   ctxMenu.fillRect(0, 0, menu.width, menu.height);
   
   if (dragObj != null) {
-    if (menuType.includes("ball") && menuType != "ball_main") {
+    if (menuBallShown()) {
       drawBall(menu.width / 2, menu.width * 2 / 5, -dragObj.pa, menu.width * 3 / 5 * (menuObjHovered ? 1.08 : 1), dragObj.color, ctxMenu);
-    } else if (menuType.includes("wall") && menuType != "wall_main") {
+    } else if (menuWallShown()) {
       let x;
       let y;
       let sizeScale = (menuObjHovered ? 1.08 : 1) * menu.width * 3 / 5 / dragObj.offsetSize;
@@ -3471,7 +3570,7 @@ function frame(time) {
     }
     
     setMenuHeight();
-    
+  
     show();
     showMenu();
     
