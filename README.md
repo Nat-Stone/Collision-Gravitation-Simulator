@@ -1,7 +1,7 @@
 # Collision/Gravitation Simulator
 https://sites.google.com/view/nat-stone-programming-projects/collisiongravitation-simulator
 
-This simulator is capable of modelling rigid collisions and gravitation, with related constants such as little g, big G, friction, restitution, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported. Test your knowledge with the slope demo presets; which balls will reach the bottom first?
+This simulator is capable of modelling rigid collisions and gravitation, with related constants such as little g, big G, restitution, static and kinetic friction, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls and immovable rectangular, triangular, circular, and custom walls are supported. Test your knowledge with the slope demo presets; which balls will reach the bottom first?
 
 The following is a detailed explanation of every button/control, though most of it is intuitive within the simulator. The below description is clearer when viewed raw.
 
@@ -63,7 +63,8 @@ Click a wall to edit its variables.
   Click "general" to edit general wall variables.
     "color" is the color of the wall.
     "w rest" is the coefficient of restitution between the wall and balls.
-    "w frict" is the coefficient of friction between the wall and balls.
+    "w μₛ" is the coefficient of static friction between the wall and balls.
+    "w μₖ" is the coefficient of kinetic friction between the wall and balls.
   Click "position" to edit the wall's position and size.
   Click "delete" to delete the wall.
 Click "timing" to edit performance/timing settings.
@@ -111,7 +112,8 @@ Click "defaults" to edit the ball creation defaults.
   "density" controls the mass of the created balls (mass = density * size³).
   "moi" controls the coefficient of the created ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
   "w rest" controls the coefficient of restitution between a wall and balls.
-  "w frict" controls the coefficient of friction between a wall and balls.
+  "w μₛ" controls the coefficient of static friction between a wall and balls.
+  "w μₖ" controls the coefficient of kinetic friction between a wall and balls.
   "drag 0" controls the coefficient of the constant (v⁰) term of drag.
   "drag 1" controls the coefficient of the linear (v¹) term of drag.
   "drag 2" controls the coefficient of the quadratic (v²) term of drag.
@@ -124,7 +126,8 @@ Click "variables" to edit simulation variables.
   "gx" is the horizontal component of the uniform gravitation force.
   "gy" is the vertical component of the uniform gravitation force.
   "b rest" is the coefficient of restitution between balls.
-  "b frict" is the friction coefficient between balls.
+  "b μₛ" is the coefficient of static friction between balls.
+  "b μₖ" is the coefficient of kinetic friction between balls.
   "wind vx" is the horizontal component of wind velocity, which drag is relative to.
   "wind vy" is the vertical component of wind velocity, which drag is relative to.
   "collide" is whether or not balls collide with other balls.
