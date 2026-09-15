@@ -3086,7 +3086,8 @@ menu.onmousedown = function(event) {
     if (dragObj != null) {
       updateMenuObjHover();
       if (menuObjHovered) {
-        shift((dragObj.objType == "ball" ? dragObj.px : dragObj.centerX) - gameWidth / 2 - screenX, (dragObj.objType == "ball" ? dragObj.py : dragObj.centerY) - gameHeight / 2 - screenY);
+        let menuObj = getShownMenuObj();
+        shift((menuObj.objType == "ball" ? menuObj.px : menuObj.centerX) - gameWidth / 2 - screenX, (menuObj.objType == "ball" ? menuObj.py : menuObj.centerY) - gameHeight / 2 - screenY);
       }
     }
     let n = menuObjShown() ? 2 : 0;
@@ -3474,11 +3475,11 @@ function setup() {
   menuValues.objects = [
     new MenuButton("main", gotoMainMenu),
     new MenuButton("ball", setBallMode),
+    new MenuButton("spring", setSpringMode),
     new MenuButton("rectangle wall", setRectWallMode),
     new MenuButton("triangle wall", setTriWallMode),
     new MenuButton("circle wall", setCircleWallMode),
     new MenuButton("custom wall", setListWallMode),
-    new MenuButton("spring", setSpringMode),
     new MenuButton("reset", resetObjects),
   ];
   
@@ -3490,11 +3491,11 @@ function setup() {
     new MenuButton("balls", function() {
       gotoMenu("defaults_balls");
     }),
-    new MenuButton("walls", function() {
-      gotoMenu("defaults_walls");
-    }),
     new MenuButton("springs", function() {
       gotoMenu("defaults_springs");
+    }),
+    new MenuButton("walls", function() {
+      gotoMenu("defaults_walls");
     })
   ];
   
@@ -3537,21 +3538,6 @@ function setup() {
     })
   ];
   
-  menuValues.defaults_walls = [
-    new MenuButton("defaults", function() {
-      gotoMenu("defaults");
-    }),
-    new MenuFloat("rest", true, () => (wRestCoef), function(wRestCoef1) {
-      wRestCoef = wRestCoef1;
-    }),
-    new MenuFloat("μₛ", true, () => (wSFrictCoef), function(wSFrictCoef1) {
-      wSFrictCoef = wSFrictCoef1;
-    }),
-    new MenuFloat("μₖ", true, () => (wKFrictCoef), function(wKFrictCoef1) {
-      wKFrictCoef = wKFrictCoef1;
-    }),
-  ];
-  
   menuValues.defaults_springs = [
     new MenuButton("defaults", function() {
       gotoMenu("defaults");
@@ -3564,6 +3550,21 @@ function setup() {
     }),
     new MenuFloat("thick/s", true, () => (thicknessRatio), function(thicknessRatio1) {
       thicknessRatio = thicknessRatio1;
+    }),
+  ];
+  
+  menuValues.defaults_walls = [
+    new MenuButton("defaults", function() {
+      gotoMenu("defaults");
+    }),
+    new MenuFloat("rest", true, () => (wRestCoef), function(wRestCoef1) {
+      wRestCoef = wRestCoef1;
+    }),
+    new MenuFloat("μₛ", true, () => (wSFrictCoef), function(wSFrictCoef1) {
+      wSFrictCoef = wSFrictCoef1;
+    }),
+    new MenuFloat("μₖ", true, () => (wKFrictCoef), function(wKFrictCoef1) {
+      wKFrictCoef = wKFrictCoef1;
     }),
   ];
   
@@ -3787,6 +3788,113 @@ function setup() {
     }),
   ];
   
+  menuValues.spring_main = [
+    new MenuButton("spring", function() {
+      gotoMenu("spring");
+    }),
+    new MenuButton("timing", function() {
+      gotoMenu("timing");
+    }),
+    new MenuButton("presets", function() {
+      gotoMenu("presets");
+    }),
+    new MenuButton("objects", function() {
+      gotoMenu("objects");
+    }),
+    new MenuButton("defaults", function() {
+      gotoMenu("defaults");
+    }),
+    new MenuButton("variables", function() {
+      gotoMenu("variables");
+    }),
+    new MenuButton("info", function() {
+      gotoMenu("info");
+    }),
+  ];
+  
+  menuValues.spring = [
+    new MenuButton("main", function() {
+      gotoMenu("spring_main");
+    }),
+    new MenuButton("general", function() {
+      gotoMenu("spring_general");
+    }),
+    new MenuButton("object 1", function() {
+      menuObjNum = 1;
+      gotoMenu(dragObj.obj1.objType == "point" ? "spring_point" : "spring_object");
+    }),
+    new MenuButton("object 2", function() {
+      menuObjNum = 2;
+      gotoMenu(dragObj.obj2.objType == "point" ? "spring_point" : "spring_object");
+    }),
+    new MenuButton("delete", deleteDragObj),
+  ];
+  
+  menuValues.spring_general = [
+    new MenuButton("spring", function() {
+      gotoMenu("spring");
+    }),
+    new MenuString("color", true, () => (stringifyColor(dragObj.color)), function(color1) {
+      dragObj.color = formatColor(color1);
+    }),
+    new MenuFloat("length", false, () => dist(...dragObj.getPos1(), ...dragObj.getPos2())),
+    new MenuFloat("x̄", true, () => (dragObj.equilibrium), function(equilibrium) {
+      dragObj.equilibrium = equilibrium;
+    }),
+    new MenuFloat("k", true, () => (dragObj.k), function(k) {
+      dragObj.k = k;
+    }),
+    new MenuFloat("size", true, () => (dragObj.size), function(size) {
+      dragObj.size = size;
+    }),
+    new MenuNumber("coils", true, () => (dragObj.coils), function(coils) {
+      dragObj.coils = coils;
+    }),
+    new MenuFloat("thick", true, () => (dragObj.thickness), function(thickness) {
+      dragObj.thickness = thickness;
+    }),
+  ];
+  
+  menuValues.spring_point = [
+    new MenuButton("spring", function() {
+      gotoMenu("spring");
+    }),
+    new MenuBoolean("select", true, () => selectMenuObj, function() {
+      selectMenuObj = !selectMenuObj;
+    }),
+    new MenuFloat("x", true, () => (dragObj["obj" + menuObjNum].x + distOffsetX), function(x) {
+      dragObj["obj" + menuObjNum].x = x - distOffsetX;
+    }),
+    new MenuFloat("y", true, () => (dragObj["obj" + menuObjNum].y + distOffsetY), function(y) {
+      dragObj["obj" + menuObjNum].y = y - distOffsetY;
+    }),
+  ];
+  
+  menuValues.spring_object = [
+    new MenuButton("spring", function() {
+      gotoMenu("spring");
+    }),
+    new MenuBoolean("select", true, () => selectMenuObj, function() {
+      selectMenuObj = !selectMenuObj;
+    }),
+    new MenuFloat("dx", true, () => (dragObj["getPos" + menuObjNum](0, 0)[0]), function(dx) {
+      let a = dragObj["obj" + menuObjNum].getA();
+      let ax = Math.cos(a);
+      let ay = Math.sin(a);
+      let dy = dragObj["getPos" + menuObjNum](0, 0)[1];
+      dragObj["dx" + menuObjNum] = dx * ax + dy * ay;
+      dragObj["dy" + menuObjNum] = - dx * ay + dy * ax;
+    }),
+    new MenuFloat("dy", true, () => (dragObj["getPos" + menuObjNum](0, 0)[1]), function(dy) {
+      let a = dragObj["obj" + menuObjNum].getA();
+      let ax = Math.cos(a);
+      let ay = Math.sin(a);
+      let dx = dragObj["getPos" + menuObjNum](0, 0)[0];
+      dragObj["dy" + menuObjNum] = - dx * ay + dy * ax;
+      dragObj["dx" + menuObjNum] = dx * ax + dy * ay;
+    }),
+  ];
+  
   menuValues.wall_main = [
     new MenuButton("wall", function() {
       gotoMenu("wall");
@@ -3956,113 +4064,6 @@ function setup() {
     }),
     new MenuFloat("a", true, () => (dragObj.angle * 180 / Math.PI), function(a) {
       dragObj.rotate(a * Math.PI / 180 - dragObj.angle);
-    }),
-  ];
-  
-  menuValues.spring_main = [
-    new MenuButton("spring", function() {
-      gotoMenu("spring");
-    }),
-    new MenuButton("timing", function() {
-      gotoMenu("timing");
-    }),
-    new MenuButton("presets", function() {
-      gotoMenu("presets");
-    }),
-    new MenuButton("objects", function() {
-      gotoMenu("objects");
-    }),
-    new MenuButton("defaults", function() {
-      gotoMenu("defaults");
-    }),
-    new MenuButton("variables", function() {
-      gotoMenu("variables");
-    }),
-    new MenuButton("info", function() {
-      gotoMenu("info");
-    }),
-  ];
-  
-  menuValues.spring = [
-    new MenuButton("main", function() {
-      gotoMenu("spring_main");
-    }),
-    new MenuButton("general", function() {
-      gotoMenu("spring_general");
-    }),
-    new MenuButton("object 1", function() {
-      menuObjNum = 1;
-      gotoMenu(dragObj.obj1.objType == "point" ? "spring_point" : "spring_object");
-    }),
-    new MenuButton("object 2", function() {
-      menuObjNum = 2;
-      gotoMenu(dragObj.obj2.objType == "point" ? "spring_point" : "spring_object");
-    }),
-    new MenuButton("delete", deleteDragObj),
-  ];
-  
-  menuValues.spring_general = [
-    new MenuButton("spring", function() {
-      gotoMenu("spring");
-    }),
-    new MenuString("color", true, () => (stringifyColor(dragObj.color)), function(color1) {
-      dragObj.color = formatColor(color1);
-    }),
-    new MenuFloat("length", false, () => dist(...dragObj.getPos1(), ...dragObj.getPos2())),
-    new MenuFloat("x̄", true, () => (dragObj.equilibrium), function(equilibrium) {
-      dragObj.equilibrium = equilibrium;
-    }),
-    new MenuFloat("k", true, () => (dragObj.k), function(k) {
-      dragObj.k = k;
-    }),
-    new MenuFloat("size", true, () => (dragObj.size), function(size) {
-      dragObj.size = size;
-    }),
-    new MenuNumber("coils", true, () => (dragObj.coils), function(coils) {
-      dragObj.coils = coils;
-    }),
-    new MenuFloat("thick", true, () => (dragObj.thickness), function(thickness) {
-      dragObj.thickness = thickness;
-    }),
-  ];
-  
-  menuValues.spring_point = [
-    new MenuButton("spring", function() {
-      gotoMenu("spring");
-    }),
-    new MenuBoolean("select", true, () => selectMenuObj, function() {
-      selectMenuObj = !selectMenuObj;
-    }),
-    new MenuFloat("x", true, () => (dragObj["obj" + menuObjNum].x + distOffsetX), function(x) {
-      dragObj["obj" + menuObjNum].x = x - distOffsetX;
-    }),
-    new MenuFloat("y", true, () => (dragObj["obj" + menuObjNum].y + distOffsetY), function(y) {
-      dragObj["obj" + menuObjNum].y = y - distOffsetY;
-    }),
-  ];
-  
-  menuValues.spring_object = [
-    new MenuButton("spring", function() {
-      gotoMenu("spring");
-    }),
-    new MenuBoolean("select", true, () => selectMenuObj, function() {
-      selectMenuObj = !selectMenuObj;
-    }),
-    new MenuFloat("dx", true, () => (dragObj["getPos" + menuObjNum](0, 0)[0]), function(dx) {
-      let a = dragObj["obj" + menuObjNum].getA();
-      let ax = Math.cos(a);
-      let ay = Math.sin(a);
-      let dy = dragObj["getPos" + menuObjNum](0, 0)[1];
-      dragObj["dx" + menuObjNum] = dx * ax + dy * ay;
-      dragObj["dy" + menuObjNum] = - dx * ay + dy * ax;
-    }),
-    new MenuFloat("dy", true, () => (dragObj["getPos" + menuObjNum](0, 0)[1]), function(dy) {
-      let a = dragObj["obj" + menuObjNum].getA();
-      let ax = Math.cos(a);
-      let ay = Math.sin(a);
-      let dx = dragObj["getPos" + menuObjNum](0, 0)[0];
-      dragObj["dy" + menuObjNum] = - dx * ay + dy * ax;
-      dragObj["dx" + menuObjNum] = dx * ax + dy * ay;
     }),
   ];
   
