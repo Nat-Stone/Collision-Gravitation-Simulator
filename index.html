@@ -66,6 +66,7 @@ const listWallInc = 0.01;
 let mainPTime = 0;
 let rawMaindt = 0;
 let maindt = 0;
+let uStart = null;
 let distOffsetX = 0;
 let distOffsetY = 0;
 
@@ -80,6 +81,7 @@ let pmouseX = null;
 let pmouseY = null;
 let pfmouseX = null;
 let pfmouseY = null;
+let mouseDown = false;
 let mouseDownX = null;
 let mouseDownY = null;
 let pClickX = null;
@@ -107,6 +109,8 @@ let pressedKeys = [];
 let walls = [];
 let balls = [];
 let springs = [];
+let strings = [];
+let randomness = 0;
 let G = 0;
 let gx = 0;
 let gy = 0;
@@ -131,6 +135,9 @@ let ballRotatable = true;
 let kCoef = 100;
 let coilRatio = 5;
 let thicknessRatio = 0.1;
+let stringStrength = 1;
+let enforceStringMin = false;
+let enforceStringMax = true;
 let push = true;
 let inValue = false;
 let menuObjHovered = false;
@@ -184,13 +191,10 @@ function shift(dx, dy) {
   pfmouseY -= dy;
   mouseDownX -= dx;
   mouseDownY -= dy;
-  for (let b of balls) {
-    b.move(-dx, -dy);
+  for (let o of [...balls, ...walls]) {
+    o.move(-dx, -dy);
   }
-  for (let w of walls) {
-    w.move(-dx, -dy);
-  }
-  for (let s of springs) {
+  for (let s of [...springs, ...strings]) {
     if (s.obj1.objType == "point") s.obj1.move(-dx, -dy);
     if (s.obj2.objType == "point") s.obj2.move(-dx, -dy);
   }
@@ -239,23 +243,27 @@ function getMenuValues() {
 }
 
 function getShownMenuObj() {
-  return menuObjShown() ? (dragObj.objType == "spring" && menuType != "spring" && menuType != "spring_general" ? dragObj["obj" + menuObjNum] : dragObj) : null;
+  return menuObjShown() ? ((dragObj.objType == "spring" && menuType != "spring" && menuType != "spring_general") || (dragObj.objType == "string" && menuType != "string" && menuType != "string_general") ? dragObj["obj" + menuObjNum] : dragObj) : null;
 }
 
 function menuBallShown() {
-  return (menuType == "ball" || (menuType.includes("ball_") && menuType != "ball_main")) || ((menuType == "spring_point" || menuType == "spring_object") && dragObj != null && dragObj.objType == "spring" && dragObj["obj" + menuObjNum].objType == "ball");
+  return (menuType == "ball" || (menuType.includes("ball_") && menuType != "ball_main")) || ((menuType == "spring_point" || menuType == "spring_object" || menuType == "string_point" || menuType == "string_object") && dragObj != null && (dragObj.objType == "spring" || dragObj.objType == "string") && dragObj["obj" + menuObjNum].objType == "ball");
 }
 
 function menuWallShown() {
-  return (menuType == "wall" || (menuType.includes("wall_") && menuType != "wall_main")) || ((menuType == "spring_point" || menuType == "spring_object") && dragObj != null && dragObj.objType == "spring" && dragObj["obj" + menuObjNum].objType.includes("Wall"));
+  return (menuType == "wall" || (menuType.includes("wall_") && menuType != "wall_main")) || ((menuType == "spring_point" || menuType == "spring_object" || menuType == "string_point" || menuType == "string_object") && dragObj != null && (dragObj.objType == "spring" || dragObj.objType == "string") && dragObj["obj" + menuObjNum].objType.includes("Wall"));
 }
 
 function menuSpringShown() {
   return menuType == "spring" || menuType == "spring_general";
 }
 
+function menuStringShown() {
+  return menuType == "string" || menuType == "string_general";
+}
+
 function menuObjShown() {
-  return menuBallShown() || menuWallShown() || menuSpringShown();
+  return menuBallShown() || menuWallShown() || menuSpringShown() || menuStringShown();
 }
 
 function dist(x1, y1, x2, y2) {
@@ -383,7 +391,7 @@ function formatColor(color) {
 }
 
 function setPresetJSON(preset) {  
-  menuValues.presets.push(new MenuPreset(true, new Preset(preset.title, preset.settings, preset.objects, new Function(preset.func.substring(preset.func.indexOf("{") + 1, preset.func.length - 1)))));
+  menuValues.presets.push(new MenuPreset(true, new Preset(preset.title, preset.settings, preset.objects, preset.func == undefined ? undefined : new Function(preset.func.substring(preset.func.indexOf("{") + 1, preset.func.length - 1)))));
 }
 
 async function readClipboard(func) {
@@ -428,6 +436,78 @@ function drawBall(px, py, pa, size, color, ctx = ctxMain, lines = true) {
     ctx.lineTo(-15, sqrt3);
     ctx.moveTo(0, 0);
     ctx.lineTo(-15, -sqrt3);
+    ctx.stroke();
+  }
+}
+
+function drawSpring(x1, y1, x2, y2, size, coils, thickness, color, ctx=ctxMain) {
+  if (coils >= 1 && (x1 != x2 || y1 != y2)) {
+    if (ctx == ctxMain) {
+      scale();
+    } else {
+      ctx.resetTransform();
+    }
+    
+    ctx.strokeStyle = color;
+    ctx.lineWidth = thickness;
+    ctx.lineCap = "but" + "t";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    
+    let length = dist(x1, y1, x2, y2);
+    let dxThick = (x2 - x1) * thickness / length / 2;
+    let dyThick = (y2 - y1) * thickness / length / 2;
+    let dx = (x2 - x1) * 2 / coils - dxThick;
+    let dy = (y2 - y1) * 2 / coils - dyThick;
+    let normalX = (y2 - y1) * size / length / 2;
+    let normalY = (x1 - x2) * size / length / 2;
+    let sx1 = x1 + dx / 4 + normalX;
+    let sy1 = y1 + dy / 4 + normalY;
+    let sx2 = x1 + dx * 3 / 4 - normalX;
+    let sy2 = y1 + dy * 3 / 4 - normalY;
+    
+    for (let n = 1; n < coils; n += 2) {
+      ctx.lineTo(sx1, sy1);
+      sx1 += dxThick;
+      sy1 += dyThick;
+      ctx.lineTo(sx1, sy1);
+      sx1 += dx;
+      sy1 += dy;
+      ctx.lineTo(sx2, sy2);
+      sx2 += dxThick;
+      sy2 += dyThick;
+      ctx.lineTo(sx2, sy2);
+      sx2 += dx;
+      sy2 += dy;
+    }
+    
+    if (coils % 2 == 1) {
+      ctx.lineTo(sx1, sy1);
+      sx1 += dxThick;
+      sy1 += dyThick;
+      ctx.lineTo(sx1, sy1);
+    }
+    
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+}
+
+function drawString(x1, y1, x2, y2, size, color, ctx=ctxMain) {
+  if (x1 != x2 || y1 != y2) {
+    if (ctx == ctxMain) {
+      scale();
+    } else {
+      ctx.resetTransform();
+    }
+    
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    let factor = size / dist(x1, y1, x2, y2) / 2;
+    ctx.moveTo(x1 + (x2 - x1) * factor, y1 + (y2 - y1) * factor);
+    ctx.lineTo(x2 + (x1 - x2) * factor, y2 + (y1 - y2) * factor);
     ctx.stroke();
   }
 }
@@ -506,59 +586,6 @@ function drawListWall(wList, color, ctx = ctxMain) {
   
 }
 
-function drawSpring(x1, y1, x2, y2, size, coils, thickness, color, ctx=ctxMain) {
-  if (coils >= 1 && (x1 != x2 || y1 != y2)) {
-    if (ctx == ctxMain) {
-      scale();
-    } else {
-      ctx.resetTransform();
-    }
-    
-    ctx.strokeStyle = color;
-    ctx.lineWidth = thickness;
-    ctx.lineCap = "but" + "t";
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    
-    let length = dist(x1, y1, x2, y2);
-    let dxThick = (x2 - x1) * thickness / length / 2;
-    let dyThick = (y2 - y1) * thickness / length / 2;
-    let dx = (x2 - x1) * 2 / coils - dxThick;
-    let dy = (y2 - y1) * 2 / coils - dyThick;
-    let normalX = (y2 - y1) * size / length / 2;
-    let normalY = (x1 - x2) * size / length / 2;
-    let sx1 = x1 + dx / 4 + normalX;
-    let sy1 = y1 + dy / 4 + normalY;
-    let sx2 = x1 + dx * 3 / 4 - normalX;
-    let sy2 = y1 + dy * 3 / 4 - normalY;
-    
-    for (let n = 1; n < coils; n += 2) {
-      ctx.lineTo(sx1, sy1);
-      sx1 += dxThick;
-      sy1 += dyThick;
-      ctx.lineTo(sx1, sy1);
-      sx1 += dx;
-      sy1 += dy;
-      ctx.lineTo(sx2, sy2);
-      sx2 += dxThick;
-      sy2 += dyThick;
-      ctx.lineTo(sx2, sy2);
-      sx2 += dx;
-      sy2 += dy;
-    }
-    
-    if (coils % 2 == 1) {
-      ctx.lineTo(sx1, sy1);
-      sx1 += dxThick;
-      sy1 += dyThick;
-      ctx.lineTo(sx1, sy1);
-    }
-    
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  }
-}
-
 function Point(x, y) {
   this.objType = "point";
   this.x = x;
@@ -617,14 +644,14 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.fvy = this.vy;
     this.fva = this.va;
     //acceleration
-    this.accelerate();
+    this.accelerate(dt);
   } //acceleration
   
   this.update2 = function(dt) {
     //move
     this.px += this.vx * dt + this.ax * dt * dt / 2;
     this.py += this.vy * dt + this.ay * dt * dt / 2;
-    this.pa += this.va * dt + this.aa * dt * dt / 2;
+    this.pa = angMod(this.pa + this.va * dt + this.aa * dt * dt / 2);
     //accelerate
     this.vx += this.ax * dt;
     this.vy += this.ay * dt;
@@ -693,14 +720,27 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
       }
       newN = average(this.dpa);
       if (newN != null) {
-        this.pa += newN;
+        this.pa = angMod(this.pa + newN);
       }
     }
+    //reset 
+    this.dtotal = 0;
+    this.dpx = 0;
+    this.dpy = 0;
+    this.dpa = 0;
     this.pe = 0;
     this.e = 0;
   } //apply pushes
   
   this.update5 = function(dt) {
+    if (this.dtotal != 0) {
+      this.px += this.dpx / this.dtotal;
+      this.py += this.dpy / this.dtotal;
+      this.pa = angMod(this.pa + this.dpa / this.dtotal);
+    }
+  } //apply string pushes
+  
+  this.update6 = function(dt) {
     //potential
     if (this.ppx != this.px || this.ppy != this.py) {
       this.pe -= gx * this.ppx + gy * this.ppy;
@@ -738,7 +778,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.pa = this.ppa;
   } //account for potential
   
-  this.update6 = function(dt) {
+  this.update7 = function(dt) {
     if (push) {
       this.px = this.npx;
       this.py = this.npy;
@@ -749,7 +789,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.va = this.nva;
   } //apply positions
   
-  this.update7 = function(dt) {
+  this.update8 = function(dt) {
     //balls
     for (let b of this.collided) {
       this.bounceBall(b);
@@ -760,7 +800,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     }
   } //calculate velocities
   
-  this.update8 = function(dt) {
+  this.update9 = function(dt) {
     //apply
     this.vx += sum(this.dvx);
     this.vy += sum(this.dvy);
@@ -770,9 +810,29 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.ax = 0;
     this.ay = 0;
     this.aa = 0;
+    this.dtotal = 0;
+    this.dvx = 0;
+    this.dvy = 0;
+    this.dva = 0;
   } //apply velocities
   
-  this.accelerate = function() {
+  this.update10 = function(dt) {
+    //apply
+    if (this.dtotal != 0) {
+      this.vx += this.dvx / this.dtotal;
+      this.vy += this.dvy / this.dtotal;
+      this.va += this.dva / this.dtotal;
+    }
+  } //apply string force
+  
+  this.accelerate = function(dt) {
+    //randomness
+    if (randomness != 0) {
+      let mag = Math.random() * randomness / Math.sqrt(dt) / this.mass;
+      let ang = Math.random() * Math.PI * 2;
+      this.ax += mag * Math.cos(ang);
+      this.ay += mag * Math.sin(ang);
+    }
     //uniform gravity
     this.ax += gx;
     this.ay += gy;
@@ -831,39 +891,40 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   }
   
   this.bounceBall = function(b) {
-    let pvDotp = (this.pvx - b.pvx) * (b.px - this.px) + (this.pvy - b.pvy) * (b.py - this.py);
-    if (pvDotp >= -eps * Math.sqrt(this.vx * this.vx + this.vy * this.vy)) {
-      let totalMass = (b.movable ? this.mass : 0) + (this.movable ? b.mass : 0);
-      let this_mass = (totalMass == 0 ? 1 : this.mass);
-      let b_mass = (totalMass == 0 ? 1 : b.mass);
-      totalMass = (totalMass == 0 ? 2 : totalMass);
-      let distance = dist(this.px, this.py, b.px, b.py);
-      let vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
-      let normalVelMag = vDotp * (1 + bRestCoef) / distance / totalMass;
-      let normalVelAng = normalVelMag / distance;
-      let normalVelX = normalVelAng * (b.px - this.px);
-      let normalVelY = normalVelAng * (b.py - this.py);
-      let force = Math.abs(pvDotp + vDotp * bRestCoef) / distance / totalMass;
-      let fSideVel = ((this.fvx - b.fvx) * (this.py - b.py) + (this.fvy - b.fvy) * (b.px - this.px)) / distance + (this.fva * this.size + b.fva * b.size) / 2;
-      let sideVel = ((this.vx - b.vx) * (this.py - b.py) + (this.vy - b.vy) * (b.px - this.px)) / distance + (this.va * this.size + b.va * b.size) / 2;
-      let sideVelAng = sideVel / distance;
-      let sideVelX = sideVelAng * (this.py - b.py);
-      let sideVelY = sideVelAng * (b.px - this.px);
-      let frictionVelMag = Math.sign(sideVel) * Math.min(Math.abs(sideVel) / (this.rotatable ? 1 + 1 / this.moiCoef : 1) / totalMass, (Math.abs(fSideVel) <= Math.abs(sideVel) * eps ? bSFrictCoef : bKFrictCoef) * Math.abs(force));
-      let frictionVelAng = frictionVelMag / (sideVel == 0 ? Math.SQRT2 : sideVel);
-      let frictionVelX = frictionVelAng * (sideVel == 0 ? 1 : sideVelX);
-      let frictionVelY = frictionVelAng * (sideVel == 0 ? 1 : sideVelY);
-      
-      if (this.movable) {
-        this.dvx.push(-b_mass * (normalVelX + frictionVelX));
-        this.dvy.push(-b_mass * (normalVelY + frictionVelY));
+    if (this.movable || this.rotatable || b.movable || b.rotatable) {
+      let pvDotp = (this.pvx - b.pvx) * (b.px - this.px) + (this.pvy - b.pvy) * (b.py - this.py);
+      if (pvDotp >= -eps * Math.sqrt(this.vx * this.vx + this.vy * this.vy)) {
+        let this_mass = (b.movable ? this.mass : 0);
+        let b_mass = (this.movable ? b.mass : 0);
+        let massFactor = this.movable ? (b.movable ? this_mass * b_mass / (this_mass + b_mass) : this.mass) : (b.movable ? b.mass : 0);
+        let distance = dist(this.px, this.py, b.px, b.py);
+        let vDotp = (this.vx - b.vx) * (b.px - this.px) + (this.vy - b.vy) * (b.py - this.py);
+        let normalVelMag = vDotp * (1 + bRestCoef) * massFactor / distance;
+        let normalVelAng = normalVelMag / distance;
+        let normalVelX = normalVelAng * (b.px - this.px);
+        let normalVelY = normalVelAng * (b.py - this.py);
+        let force = Math.abs(pvDotp + vDotp * bRestCoef) * massFactor / distance;
+        let fSideVel = ((this.fvx - b.fvx) * (this.py - b.py) + (this.fvy - b.fvy) * (b.px - this.px)) / distance + (this.fva * this.size + b.fva * b.size) / 2;
+        let sideVel = ((this.vx - b.vx) * (this.py - b.py) + (this.vy - b.vy) * (b.px - this.px)) / distance + (this.va * this.size + b.va * b.size) / 2;
+        let sideVelAng = sideVel / distance;
+        let sideVelX = sideVelAng * (this.py - b.py);
+        let sideVelY = sideVelAng * (b.px - this.px);
+        let frictionVelMag = Math.sign(sideVel) * Math.min(Math.abs(sideVel) / ((this.movable ? 1 / this.mass : 0) + (this.rotatable ? 1 / (this.mass * this.moiCoef) : 0) + (b.movable ? 1 / b.mass : 0) + (b.rotatable ? 1 / (b.mass * b.moiCoef) : 0)), (Math.abs(fSideVel) <= Math.abs(sideVel) * eps ? bSFrictCoef : bKFrictCoef) * Math.abs(force));
+        let frictionVelAng = frictionVelMag / (sideVel == 0 ? Math.SQRT2 : sideVel);
+        let frictionVelX = frictionVelAng * (sideVel == 0 ? 1 : sideVelX);
+        let frictionVelY = frictionVelAng * (sideVel == 0 ? 1 : sideVelY);
+        
+        if (this.movable) {
+          this.dvx.push( - (normalVelX + frictionVelX) / this.mass);
+          this.dvy.push( - (normalVelY + frictionVelY) / this.mass);
+        }
+        if (this.rotatable) this.dva.push( - frictionVelMag * this.size / this.moi / 2);
+        if (b.movable) {
+          b.dvx.push((normalVelX + frictionVelX) / b.mass);
+          b.dvy.push((normalVelY + frictionVelY) / b.mass);
+        }
+        if (b.rotatable) b.dva.push( - frictionVelMag * b.size / b.moi / 2);
       }
-      if (this.rotatable) this.dva.push(-b_mass * 2 * frictionVelMag / this.size / this.moiCoef);
-      if (b.movable) {
-        b.dvx.push(this_mass * (normalVelX + frictionVelX));
-        b.dvy.push(this_mass * (normalVelY + frictionVelY));
-      }
-      if (b.rotatable) b.dva.push(-this_mass * 2 * frictionVelMag / b.size / b.moiCoef);
     }
   }
   
@@ -1186,6 +1247,280 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   }
   
   this.setMOICoef(moiCoef);
+}
+
+function Spring(obj1, obj2, dx1, dy1, dx2, dy2, equilibrium, k, size, coils, thickness, color) {
+  this.objType = "spring";
+  
+  this.obj1 = obj1;
+  this.obj2 = obj2;
+  this.dx1 = dx1;
+  this.dy1 = dy1;
+  this.dx2 = dx2;
+  this.dy2 = dy2;
+  this.equilibrium = equilibrium;
+  this.k = k;
+  this.size = size;
+  this.coils = coils;
+  this.thickness = thickness;
+  this.color = color;
+  
+  this.getPos1 = function(x, y, a) {
+    a = a ?? this.obj1.getA();
+    let ax = Math.cos(a);
+    let ay = Math.sin(a);
+    return [(x ?? this.obj1.getX()) + this.dx1 * ax - this.dy1 * ay, (y ?? this.obj1.getY()) + this.dx1 * ay + this.dy1 * ax];
+  }
+  
+  this.getPos2 = function(x, y, a) {
+    a = a ?? this.obj2.getA();
+    let ax = Math.cos(a);
+    let ay = Math.sin(a);
+    return [(x ?? this.obj2.getX()) + this.dx2 * ax - this.dy2 * ay, (y ?? this.obj2.getY()) + this.dx2 * ay + this.dy2 * ax];
+  }
+  
+  this.setVars = function() {
+    let p1 = this.getPos1();
+    let p2 = this.getPos2();
+    let distance = dist(...p1, ...p2);
+    
+    this.centerX = (p1[0] + p2[0]) / 2;
+    this.centerY = (p1[1] + p2[1]) / 2;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.offsetSize = Math.max(Math.abs(p2[0] - p1[0]) + Math.abs(this.size * (p2[1] - p1[1]) / distance), Math.abs(p2[1] - p1[1]) + Math.abs(this.size * (p2[0] - p1[0]) / distance));
+  }
+  
+  this.setVars();
+  
+  this.show = function() {
+    drawSpring(...this.getPos1(), ...this.getPos2(), this.size, this.coils, this.thickness, this.color);
+  }
+  
+  this.getX = () => (this.getPos1()[0] + this.getPos2()[0]) / 2;
+  this.getY = () => (this.getPos1()[1] + this.getPos2()[1]) / 2;
+  this.getA = () => angle(...this.getPos1(), ...this.getPos2());
+  
+  this.pointifyObj1 = function() {
+    this.obj1 = new Point(...this.getPos1());
+    this.dx1 = 0;
+    this.dy1 = 0;
+  }
+  
+  this.pointifyObj2 = function() {
+    this.obj2 = new Point(...this.getPos2());
+    this.dx2 = 0;
+    this.dy2 = 0;
+  }
+  
+  this.force = function() {
+    let p1 = this.getPos1();
+    let p2 = this.getPos2();
+    let distance = dist(...p1, ...p2);
+    let force = this.k * (1 - this.equilibrium / distance);
+    let fx = force * (p2[0] - p1[0]);
+    let fy = force * (p2[1] - p1[1]);
+    if (this.obj1.objType == "ball") {
+      if (this.obj1.movable) this.obj1.ax += fx / this.obj1.mass;
+      if (this.obj1.movable) this.obj1.ay += fy / this.obj1.mass;
+      if (this.obj1.rotatable) this.obj1.aa -= (fx * (p1[1] - this.obj1.getY()) - fy * (p1[0] - this.obj1.getX())) / this.obj1.moi;
+    }
+    if (this.obj2.objType == "ball") {
+      if (this.obj2.movable) this.obj2.ax -= fx / this.obj2.mass;
+      if (this.obj2.movable) this.obj2.ay -= fy / this.obj2.mass;
+      if (this.obj2.rotatable) this.obj2.aa += (fx * (p2[1] - this.obj2.getY()) - fy * (p2[0] - this.obj2.getX())) / this.obj2.moi;
+    }
+  }
+  
+  this.getEnergies = function() {
+    let p1 = this.obj1.objType == "ball" ? this.getPos1(this.obj1.px, this.obj1.py, this.obj1.pa) : this.getPos1();
+    let p2 = this.obj2.objType == "ball" ? this.getPos1(this.obj2.px, this.obj2.py, this.obj2.pa) : this.getPos2();
+    let e = this.getEnergy(...p1, ...p2);
+    if (this.obj1.objType == "ball") {
+      this.obj1.pe += this.getEnergy(...this.getPos1(this.obj1.ppx, this.obj1.ppy, this.obj1.ppa), ...p2);
+      this.obj1.e += e;
+    }
+    if (this.obj2.objType == "ball") {
+      this.obj2.pe += this.getEnergy(...p1, ...this.getPos1(this.obj2.ppx, this.obj2.ppy, this.obj2.ppa));
+      this.obj2.e += e;
+    }
+  }
+  
+  this.getEnergy = (x1, y1, x2, y2) => this.k * (dist(...this.getPos1(), ...this.getPos2()) - this.equilibrium) ** 2 / 2
+  
+  this.containsPoint = function(x, y) {
+    let p1 = this.getPos1();
+    let p2 = this.getPos2();
+    let distance = dist(...p1, ...p2);
+    let dist1 = (x - p1[0]) * (p2[0] - p1[0]) + (y - p1[1]) * (p2[1] - p1[1]);
+    return 0 <= dist1 && dist1 <= distance * distance && Math.abs((x - p1[0]) * (p2[1] - p1[1]) + (y - p1[1]) * (p1[0] - p2[0])) * 2 <= distance * Math.abs(this.size);
+  }
+}
+
+function String(obj1, obj2, dx1, dy1, dx2, dy2, length, strength, size, enforceMin, enforceMax, color) {
+  this.objType = "string";
+  
+  this.obj1 = obj1;
+  this.obj2 = obj2;
+  this.dx1 = dx1;
+  this.dy1 = dy1;
+  this.dx2 = dx2;
+  this.dy2 = dy2;
+  this.length = length;
+  this.strength = strength;
+  this.size = size;
+  this.enforceMin = enforceMin;
+  this.enforceMax = enforceMax;
+  this.color = color;
+  
+  this.doForce = false;
+  
+  this.getPos1 = function(x, y, a) {
+    a = a ?? this.obj1.getA();
+    let ax = Math.cos(a);
+    let ay = Math.sin(a);
+    return [(x ?? this.obj1.getX()) + this.dx1 * ax - this.dy1 * ay, (y ?? this.obj1.getY()) + this.dx1 * ay + this.dy1 * ax];
+  }
+  
+  this.getPos2 = function(x, y, a) {
+    a = a ?? this.obj2.getA();
+    let ax = Math.cos(a);
+    let ay = Math.sin(a);
+    return [(x ?? this.obj2.getX()) + this.dx2 * ax - this.dy2 * ay, (y ?? this.obj2.getY()) + this.dx2 * ay + this.dy2 * ax];
+  }
+  
+  this.getVel1 = function(x, y, a) {
+    if (this.obj1.objType == "ball") {
+      let r = this.getPos1(0, 0, a ?? this.obj1.pa);
+      return [(x ?? this.obj1.vx) - r[1] * this.obj1.va, (y ?? this.obj1.vy) + r[0] * this.obj1.va];
+    } else {
+      return [0, 0];
+    }
+  }
+  
+  this.getVel2 = function(x, y, a) {
+    if (this.obj2.objType == "ball") {
+      let r = this.getPos2(0, 0, a ?? this.obj2.pa);
+      return [(x ?? this.obj2.vx) - r[1] * this.obj2.va, (y ?? this.obj2.vy) + r[0] * this.obj2.va];
+    } else {
+      return [0, 0];
+    }
+  }
+  
+  this.setVars = function() {
+    this.total = 0;
+    this.dpx = 0;
+    this.dpy = 0;
+    this.dpa = 0;
+    this.dvx = 0;
+    this.dvy = 0;
+    this.dva = 0;
+    
+    let p1 = this.getPos1();
+    let p2 = this.getPos2();
+    let distance = dist(...p1, ...p2);
+    
+    this.centerX = (p1[0] + p2[0]) / 2;
+    this.centerY = (p1[1] + p2[1]) / 2;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.offsetSize = Math.max(Math.abs(p2[0] - p1[0]) + Math.abs(this.size * (p2[1] - p1[1]) / distance), Math.abs(p2[1] - p1[1]) + Math.abs(this.size * (p2[0] - p1[0]) / distance));
+  }
+  
+  this.setVars();
+  
+  this.show = function() {
+    drawString(...this.getPos1(), ...this.getPos2(), this.size, this.color);
+  }
+  
+  this.getX = () => (this.getPos1()[0] + this.getPos2()[0]) / 2;
+  this.getY = () => (this.getPos1()[1] + this.getPos2()[1]) / 2;
+  this.getA = () => angle(...this.getPos1(), ...this.getPos2());
+  
+  this.pointifyObj1 = function() {
+    this.obj1 = new Point(...this.getPos1());
+    this.dx1 = 0;
+    this.dy1 = 0;
+  }
+  
+  this.pointifyObj2 = function() {
+    this.obj2 = new Point(...this.getPos2());
+    this.dx2 = 0;
+    this.dy2 = 0;
+  }
+  
+  this.push = function() {
+    this.doForce = false;
+    let mass1 = (this.obj1.movable ? (this.obj2.movable ? this.obj1.mass : 0) : 1);
+    let mass2 = (this.obj2.movable ? (this.obj1.movable ? this.obj2.mass : 0) : 1);
+    let totalMass = mass1 + mass2;
+    let p1 = this.getPos1();
+    let p2 = this.getPos2();
+    let distance = dist(...p1, ...p2);
+    let dpx = (p2[0] - p1[0]) / distance;
+    let dpy = (p2[1] - p1[1]) / distance;
+    if ((this.enforceMin && distance <= this.length) || (this.enforceMax && distance >= this.length)) {
+      this.doForce = true;
+      if (this.obj1.movable) {
+        let dpFactor = this.strength * (this.length - distance) * mass2 / totalMass;
+        this.obj1.dtotal += this.strength;
+        this.obj1.dpx -= dpx * dpFactor;
+        this.obj1.dpy -= dpy * dpFactor;
+      }
+      if (this.obj2.movable) {
+        let dpFactor = this.strength * (this.length - distance) * mass1 / totalMass;
+        this.obj2.dtotal += this.strength;
+        this.obj2.dpx += dpx * dpFactor;
+        this.obj2.dpy += dpy * dpFactor;
+      }
+    }
+  }
+  
+  this.force = function() {
+    if (this.doForce && (this.obj1.movable || this.obj1.rotatable || this.obj2.movable || this.obj2.rotatable)) {
+      let p1 = this.getPos1();
+      let p2 = this.getPos2();
+      let distance = dist(...p1, ...p2);
+      let dpx = (p2[0] - p1[0]) / distance;
+      let dpy = (p2[1] - p1[1]) / distance;
+      let v1 = this.getVel1();
+      let v2 = this.getVel2();
+      let r1 = this.getPos1(0, 0);
+      let r2 = this.getPos2(0, 0);
+      let dv = dpx * (v2[0] - v1[0]) + dpy * (v2[1] - v1[1]);
+      if ((this.enforceMin && dv < 0) || (this.enforceMax && dv > 0)) {
+        let forceFactor = this.strength * dv / ((this.obj1.movable ? 1 / this.obj1.mass : 0) + (this.obj2.movable ? 1 / this.obj2.mass : 0) + (this.obj1.rotatable ? (r1[0] * dpy - r1[1] * dpx) ** 2 / (this.obj1.moi) : 0) + (this.obj2.rotatable ? (r2[0] * dpy - r2[1] * dpx) ** 2 / (this.obj2.moi) : 0));
+        if (this.obj1.objType == "ball") {
+          this.obj1.dtotal += this.strength;
+          if (this.obj1.movable) {
+            this.obj1.dvx += dpx * forceFactor / this.obj1.mass;
+            this.obj1.dvy += dpy * forceFactor / this.obj1.mass;
+          }
+          if (this.obj1.rotatable) {
+            this.obj1.va += (r1[0] * dpy - r1[1] * dpx) * forceFactor / this.obj1.moi;
+          }
+        }
+        if (this.obj2.objType == "ball") {
+          this.obj2.dtotal += this.strength;
+          if (this.obj2.movable) {
+            this.obj2.dvx -= dpx * forceFactor / this.obj2.mass;
+            this.obj2.dvy -= dpy * forceFactor / this.obj2.mass;
+          }
+          if (this.obj2.rotatable) {
+            this.obj2.va -= (r2[0] * dpy - r2[1] * dpx) * forceFactor / this.obj2.moi;
+          }
+        }
+      }
+    }
+  }
+  
+  this.containsPoint = function(x, y) {
+    let p1 = this.getPos1();
+    let p2 = this.getPos2();
+    let distance = dist(...p1, ...p2);
+    let dist1 = (x - p1[0]) * (p2[0] - p1[0]) + (y - p1[1]) * (p2[1] - p1[1]);
+    return 0 <= dist1 && dist1 <= distance * distance && Math.abs((x - p1[0]) * (p2[1] - p1[1]) + (y - p1[1]) * (p1[0] - p2[0])) * 2 <= distance * Math.abs(this.size);
+  }
 }
 
 function RectWall(x1, y1, x2, y2, size, wRest, wSFrict, wKFrict, color) {
@@ -1597,114 +1932,6 @@ function ListWall(wList) {
     }
 }
 
-function Spring(obj1, obj2, dx1, dy1, dx2, dy2, equilibrium, k, size, coils, thickness, color) {
-  this.objType = "spring";
-  
-  this.obj1 = obj1;
-  this.obj2 = obj2;
-  this.dx1 = dx1;
-  this.dy1 = dy1;
-  this.dx2 = dx2;
-  this.dy2 = dy2;
-  this.equilibrium = equilibrium;
-  this.k = k;
-  this.size = size;
-  this.coils = coils;
-  this.thickness = thickness;
-  this.color = color;
-  
-  this.getPos1 = function(x, y, a) {
-    a = a ?? this.obj1.getA();
-    let ax = Math.cos(a);
-    let ay = Math.sin(a);
-    return [(x ?? this.obj1.getX()) + this.dx1 * ax - this.dy1 * ay, (y ?? this.obj1.getY()) + this.dx1 * ay + this.dy1 * ax];
-  }
-  
-  this.getPos2 = function(x, y, a) {
-    a = a ?? this.obj2.getA();
-    let ax = Math.cos(a);
-    let ay = Math.sin(a);
-    return [(x ?? this.obj2.getX()) + this.dx2 * ax - this.dy2 * ay, (y ?? this.obj2.getY()) + this.dx2 * ay + this.dy2 * ax];
-  }
-  
-  this.setVars = function() {
-    let p1 = this.getPos1();
-    let p2 = this.getPos2();
-    let length = dist(...p1, ...p2);
-    
-    this.centerX = (p1[0] + p2[0]) / 2;
-    this.centerY = (p1[1] + p2[1]) / 2;
-    this.offsetX = 0;
-    this.offsetY = 0;
-    this.offsetSize = Math.max(Math.abs(p2[0] - p1[0]) + Math.abs(this.size * (p2[1] - p1[1]) / length), Math.abs(p2[1] - p1[1]) + Math.abs(this.size * (p2[0] - p1[0]) / length));
-  }
-  
-  this.setVars();
-  
-  this.show = function() {
-    drawSpring(...this.getPos1(), ...this.getPos2(), this.size, this.coils, this.thickness, this.color);
-  }
-  
-  this.getX = () => (this.getPos1()[0] + this.getPos2()[0]) / 2;
-  this.getY = () => (this.getPos1()[1] + this.getPos2()[1]) / 2;
-  this.getA = () => angle(...this.getPos1(), ...this.getPos2());
-  
-  this.pointifyObj1 = function() {
-    this.obj1 = new Point(...this.getPos1());
-    this.dx1 = 0;
-    this.dy1 = 0;
-  }
-  
-  this.pointifyObj2 = function() {
-    this.obj2 = new Point(...this.getPos2());
-    this.dx2 = 0;
-    this.dy2 = 0;
-  }
-  
-  this.force = function() {
-    let p1 = this.getPos1();
-    let p2 = this.getPos2();
-    let length = dist(...p1, ...p2);
-    let force = this.k * (1 - this.equilibrium / length);
-    let fx = force * (p2[0] - p1[0]);
-    let fy = force * (p2[1] - p1[1]);
-    if (this.obj1.objType == "ball") {
-      if (this.obj1.movable) this.obj1.ax += fx / this.obj1.mass;
-      if (this.obj1.movable) this.obj1.ay += fy / this.obj1.mass;
-      if (this.obj1.rotatable) this.obj1.aa -= (fx * (p1[1] - this.obj1.getY()) - fy * (p1[0] - this.obj1.getX())) / this.obj1.moi;
-    }
-    if (this.obj2.objType == "ball") {
-      if (this.obj2.movable) this.obj2.ax -= fx / this.obj2.mass;
-      if (this.obj2.movable) this.obj2.ay -= fy / this.obj2.mass;
-      if (this.obj2.rotatable) this.obj2.aa += (fx * (p2[1] - this.obj2.getY()) - fy * (p2[0] - this.obj2.getX())) / this.obj2.moi;
-    }
-  }
-  
-  this.getEnergies = function() {
-    let p1 = this.obj1.objType == "ball" ? this.getPos1(this.obj1.px, this.obj1.py, this.obj1.pa) : this.getPos1();
-    let p2 = this.obj2.objType == "ball" ? this.getPos1(this.obj2.px, this.obj2.py, this.obj2.pa) : this.getPos2();
-    let e = this.getEnergy(...p1, ...p2);
-    if (this.obj1.objType == "ball") {
-      this.obj1.pe += this.getEnergy(...this.getPos1(this.obj1.ppx, this.obj1.ppy, this.obj1.ppa), ...p2);
-      this.obj1.e += e;
-    }
-    if (this.obj2.objType == "ball") {
-      this.obj2.pe += this.getEnergy(...p1, ...this.getPos1(this.obj2.ppx, this.obj2.ppy, this.obj2.ppa));
-      this.obj2.e += e;
-    }
-  }
-  
-  this.getEnergy = (x1, y1, x2, y2) => this.k * (dist(...this.getPos1(), ...this.getPos2()) - this.equilibrium) ** 2 / 2
-  
-  this.containsPoint = function(x, y) {
-    let p1 = this.getPos1();
-    let p2 = this.getPos2();
-    let length = dist(...p1, ...p2);
-    let dist1 = (x - p1[0]) * (p2[0] - p1[0]) + (y - p1[1]) * (p2[1] - p1[1]);
-    return 0 <= dist1 && dist1 <= length * length && Math.abs((x - p1[0]) * (p2[1] - p1[1]) + (y - p1[1]) * (p1[0] - p2[0])) * 2 <= length * Math.abs(this.size);
-  }
-}
-
 function Preset(title, settings, objects, func) {
   this.title = title;
   this.settings = settings;
@@ -1715,7 +1942,7 @@ function Preset(title, settings, objects, func) {
     
     gameTime = 0;
     dragObj = null;
-    if (menuType.includes("ball") || menuType.includes("wall")) gotoMenu("main");
+    if (menuType.substring(0, 4) == "ball" || menuType.substring(0, 4) == "wall" || menuType.substring(0, 6) == "spring" || menuType.substring(0, 6) == "string") gotoMenu("main");
     if (newX1 != null) {
       newX1 = null;
       newY1 = null;
@@ -1726,6 +1953,7 @@ function Preset(title, settings, objects, func) {
     balls = [];
     walls = [];
     springs = [];
+    strings = [];
     
     if (settings.endTime != undefined) {
       endTime = settings.endTime;
@@ -1735,6 +1963,9 @@ function Preset(title, settings, objects, func) {
     }
     if (settings.height != undefined) {
       zoom(settings.height / gameHeight);
+    }
+    if (settings.randomness != undefined) {
+      randomness = settings.randomness;
     }
     if (settings.G != undefined) {
       G = settings.G;
@@ -1809,6 +2040,15 @@ function Preset(title, settings, objects, func) {
     if (settings.thicknessRatio != undefined) {
       thicknessRatio = settings.thicknessRatio;
     }
+    if (settings.stringStrength != undefined) {
+      stringStrength = settings.stringStrength;
+    }
+    if (settings.enforceStringMin != undefined) {
+      enforceStringMin = settings.enforceStringMin;
+    }
+    if (settings.enforceStringMax != undefined) {
+      enforceStringMax = settings.enforceStringMax;
+    }
     
     if (settings.screenX != undefined) {
       screenX = settings.screenX;
@@ -1842,6 +2082,9 @@ function Preset(title, settings, objects, func) {
             break;
           case "spring":
             springs.push(new Spring((o.obj1.objType == "point" ? o.obj1 : (o.obj1.objType == "ball" ? balls : walls)[o.obj1.index]), (o.obj2.objType == "point" ? o.obj2 : (o.obj2.objType == "ball" ? balls : walls)[o.obj2.index]), o.dx1, o.dy1, o.dx2, o.dy2, o.equilibrium, o.k, o.size, o.coils, o.thickness, o.color));
+            break;
+          case "string":
+            strings.push(new String((o.obj1.objType == "point" ? o.obj1 : (o.obj1.objType == "ball" ? balls : walls)[o.obj1.index]), (o.obj2.objType == "point" ? o.obj2 : (o.obj2.objType == "ball" ? balls : walls)[o.obj2.index]), o.dx1, o.dy1, o.dx2, o.dy2, o.length, o.strength, o.size, o.enforceMin, o.enforceMax, o.color));
             break;
         }
       }
@@ -2257,6 +2500,13 @@ function gotoMainMenu() {
   gotoMenu(dragObj == null ? "main" : (dragObj.objType == "ball" ? "ball_main" : "wall_main"));
 }
 
+function getObjPoint(obj, dx, dy) {
+  let a = obj.getA();
+  let ax = Math.cos(a);
+  let ay = Math.sin(a);
+  return new Point(obj.getX() + dx * ax - dy * ay, obj.getY() + dx * ay + dy * ax);
+}
+
 function listWallSize(x, y, mx, my) {
   let pn = Math.floor((x.length - 1) * 9 / 10);
   return ((mx - x[pn]) * (y[pn] - y[x.length - 1]) + (my - y[pn]) * (x[x.length - 1] - x[pn])) / dist(x[pn], y[pn], x[x.length - 1], y[x.length - 1]);
@@ -2329,6 +2579,54 @@ function createBall() {
   newY1 = null;
 }
 
+function createSpring() {
+  let a1 = newObj1.getA();
+  let ax1 = Math.cos(a1);
+  let ay1 = Math.sin(a1);
+  let x1 = newObj1.getX() + newX1 * ax1 - newY1 * ay1;
+  let y1 = newObj1.getY() + newX1 * ay1 + newY1 * ax1;
+  let a2 = newObj2.getA();
+  let ax2 = Math.cos(a2);
+  let ay2 = Math.sin(a2);
+  let x2 = newObj2.getX() + newX2 * ax2 - newY2 * ay2;
+  let y2 = newObj2.getY() + newX2 * ay2 + newY2 * ax2;
+  let length = dist(x1, y1, x2, y2);
+  let size = 2 * alignNum(((mouseX - x2) * (y2 - y1) - (mouseY - y2) * (x2 - x1)) / length);
+  if (Math.abs(size) * scaleFactor >= minDrag) {
+    springs.push(new Spring(newObj1, newObj2, newX1, newY1, newX2, newY2, length, kCoef * Math.abs(size) ** 3 / length, size, Math.ceil(Math.abs(coilRatio * length / size)), Math.abs(thicknessRatio * size), newColor));
+    newObj1 = null;
+    newX1 = null;
+    newY1 = null;
+    newObj2 = null;
+    newX2 = null;
+    newY2 = null;
+  }
+}
+
+function createString() {
+  let a1 = newObj1.getA();
+  let ax1 = Math.cos(a1);
+  let ay1 = Math.sin(a1);
+  let x1 = newObj1.getX() + newX1 * ax1 - newY1 * ay1;
+  let y1 = newObj1.getY() + newX1 * ay1 + newY1 * ax1;
+  let a2 = newObj2.getA();
+  let ax2 = Math.cos(a2);
+  let ay2 = Math.sin(a2);
+  let x2 = newObj2.getX() + newX2 * ax2 - newY2 * ay2;
+  let y2 = newObj2.getY() + newX2 * ay2 + newY2 * ax2;
+  let length = dist(x1, y1, x2, y2);
+  let size = Math.abs(2 * alignNum(((mouseX - x2) * (y2 - y1) - (mouseY - y2) * (x2 - x1)) / length));
+  if (Math.abs(size) * scaleFactor >= minDrag) {
+    strings.push(new String(newObj1, newObj2, newX1, newY1, newX2, newY2, length, stringStrength, size, enforceStringMin, enforceStringMax, newColor));
+    newObj1 = null;
+    newX1 = null;
+    newY1 = null;
+    newObj2 = null;
+    newX2 = null;
+    newY2 = null;
+  }
+}
+
 function createRectWall() {
   let size = alignNum(((mouseX - newX1) * (newY1 - newY2) + (mouseY - newY1) * (newX2 - newX1)) / dist(newX1, newY1, newX2, newY2));
   walls.push(new RectWall(newX1, newY1, newX2, newY2, size, wRestCoef, wSFrictCoef, wKFrictCoef, newColor));
@@ -2379,30 +2677,6 @@ function createListWall() {
   newY2 = null;
 }
 
-function createSpring() {
-  let a1 = newObj1.getA();
-  let ax1 = Math.cos(a1);
-  let ay1 = Math.sin(a1);
-  let x1 = newObj1.getX() + newX1 * ax1 - newY1 * ay1;
-  let y1 = newObj1.getY() + newX1 * ay1 + newY1 * ax1;
-  let a2 = newObj2.getA();
-  let ax2 = Math.cos(a2);
-  let ay2 = Math.sin(a2);
-  let x2 = newObj2.getX() + newX2 * ax2 - newY2 * ay2;
-  let y2 = newObj2.getY() + newX2 * ay2 + newY2 * ax2;
-  let length = dist(x1, y1, x2, y2);
-  let size = 2 * alignNum(((mouseX - x2) * (y2 - y1) - (mouseY - y2) * (x2 - x1)) / length);
-  if (Math.abs(size) * scaleFactor >= minDrag) {
-    springs.push(new Spring(newObj1, newObj2, newX1, newY1, newX2, newY2, length, kCoef * Math.abs(size) ** 3 / length, size, Math.ceil(Math.abs(coilRatio * length / size)), Math.abs(thicknessRatio * size), newColor));
-    newObj1 = null;
-    newX1 = null;
-    newY1 = null;
-    newObj2 = null;
-    newX2 = null;
-    newY2 = null;
-  }
-}
-
 function drag(mode) {
     if (dragObj.objType == "ball") {
       if (mode) {
@@ -2444,11 +2718,15 @@ function drag(mode) {
     }
 }
 
+function objDraggable() {
+  return dragObj != null && dragObj.objType != "spring" && dragObj.objType != "string";
+}
+
 function checkClick() {
   if (selectMenuObj) return true;
   if (dragObj == null) {
     if (newX1 == null && newObj1 == null) return true;
-    if (pClickX != null && pClickY != null && dist(pClickX, pClickY, mouseX, mouseY) < minDrag / scaleFactor && !(dragType == "k" && ((newObj1 != null && newX1 == null) || (newObj2 != null && newX2 == null)))) return false;
+    if (pClickX != null && pClickY != null && dist(pClickX, pClickY, mouseX, mouseY) < minDrag / scaleFactor && !((dragType == "k" || dragType == "s") && ((newObj1 != null && newX1 == null) || (newObj2 != null && newX2 == null)))) return false;
     let ret = newX1 == null && newObj1 == null;
     let aligned;
     switch (dragType) {
@@ -2569,10 +2847,84 @@ function checkClick() {
           }
         }
         break;
+      case "s":
+        if (newX2 != null) {
+          createString();
+        } else if (newObj2 != null) {
+          let p;
+          switch (newObj2.objType) {
+            case "ball":
+              p = alignDist(0, 0, mouseX - newObj2.px, mouseY - newObj2.py, align=true, a2=newObj2.pa, revert=false);
+              newX2 = p[0];
+              newY2 = p[1];
+              break;
+            case "rectWall":
+            case "triWall":
+            case "listWall":
+              p = alignLine(0, 0, mouseX - newObj2.centerX, mouseY - newObj2.centerY, align=true, ax=Math.cos(newObj2.angle), ay=Math.sin(newObj2.angle), revert=false);
+              newX2 = p[0];
+              newY2 = p[1];
+              break;
+            case "circleWall":
+              p = alignDist(0, 0, mouseX - newObj2.centerX, mouseY - newObj2.centerY, align=true, a2=newObj2.angle, revert=false);
+              newX2 = p[0];
+              newY2 = p[1];
+              break;
+          }
+        } else if (newX1 != null) {
+          let search = true;
+          if (!pressedKeys.includes("control")) {
+            for (b of balls.toReversed()) {
+                if (b.containsPoint(mouseX, mouseY)) {
+                  newObj2 = b;
+                  search = false;
+                  break;
+                }
+            }
+            
+            if (search) {
+                for (w of walls.toReversed()) {
+                    if (w.containsPoint(mouseX, mouseY)) {
+                      newObj2 = w;
+                      search = false;
+                      break;
+                    }
+                }
+            }
+          }
+          
+          if (search) {
+            newObj2 = new Point(...alignPos(mouseX, mouseY));
+            newX2 = 0;
+            newY2 = 0;
+          }
+        } else if (newObj1 != null) {
+          let p;
+          switch (newObj1.objType) {
+            case "ball":
+              p = alignDist(0, 0, mouseX - newObj1.px, mouseY - newObj1.py, align=true, a1=newObj1.pa, revert=false);
+              newX1 = p[0];
+              newY1 = p[1];
+              break;
+            case "rectWall":
+            case "triWall":
+            case "listWall":
+              p = alignLine(0, 0, mouseX - newObj1.centerX, mouseY - newObj1.centerY, align=true, ax=Math.cos(newObj1.angle), ay=Math.sin(newObj1.angle), revert=false);
+              newX1 = p[0];
+              newY1 = p[1];
+              break;
+            case "circleWall":
+              p = alignDist(0, 0, mouseX - newObj1.centerX, mouseY - newObj1.centerY, align=true, a1=newObj1.angle, revert=false);
+              newX1 = p[0];
+              newY1 = p[1];
+              break;
+          }
+        }
+        break;
     }
     return ret;
   } else {
-    drag();
+    if (objDraggable()) drag();
     dragObj = null;
     gotoMenu("main");
     return false;
@@ -2584,23 +2936,37 @@ function updateMenuObjHover() {
     if (menuBallShown()) {
       menuObjHovered = sqdist(menu.width / 2, menu.width * 2 / 5, clientX - main.width, clientY + document.getElementById("scroll").scrollTop) <= (menu.width * 3 / 10 * (menuObjHovered ? 1.08 : 1)) ** 2;
     } else if (menuWallShown() || menuSpringShown()) {
-      let sizeScale = dragObj.offsetSize / menu.width / 3 * 5 / (menuObjHovered ? 1.08 : 1);
-      menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * sizeScale + dragObj.getX() + dragObj.offsetX, (menu.width * 2 / 5 - clientY - document.getElementById("scroll").scrollTop) * sizeScale + dragObj.getY() + dragObj.offsetY);
+      let menuScale = dragObj.offsetSize / menu.width / 3 * 5 / (menuObjHovered ? 1.08 : 1);
+      menuObjHovered = dragObj.containsPoint((clientX - main.width - menu.width / 2) * menuScale + dragObj.getX() + dragObj.offsetX, (menu.width * 2 / 5 - clientY - document.getElementById("scroll").scrollTop) * menuScale + dragObj.getY() + dragObj.offsetY);
     }
   }
 }
 
 function deleteDragObj() {
   if (dragObj != null) {
-      if (dragObj.objType == "ball") {
-          balls.splice(balls.indexOf(dragObj), 1);
-      } else if (dragObj.objType == "spring") {
-          springs.splice(springs.indexOf(dragObj), 1);
-      } else {
-          walls.splice(walls.indexOf(dragObj), 1);
-      }
-      dragObj = null;
-      gotoMenu("main");
+    for (let s of [...springs, ...strings]) {
+      if (s.obj1 == dragObj) s.pointifyObj1();
+      if (s.obj2 == dragObj) s.pointifyObj2();
+    }
+    switch (dragObj.objType) {
+      case "ball":
+        balls.splice(balls.indexOf(dragObj), 1);
+        break;
+      case "spring":
+        springs.splice(springs.indexOf(dragObj), 1);
+        break;
+      case "string":
+        strings.splice(strings.indexOf(dragObj), 1);
+        break;
+      case "rectWall":
+      case "triWall":
+      case "circleWall":
+      case "listWall":
+        walls.splice(walls.indexOf(dragObj), 1);
+        break;
+    }
+    dragObj = null;
+    gotoMenu("main");
   }
   newX1 = null;
   newY1 = null;
@@ -2617,67 +2983,113 @@ function togglePause() {
 
 function doUpdate() {
   let dt = speed / fps / upf;
-  if (dt > 0 && dt < 2 * speed / fps) {
-    for (let n = 0; n < upf; n++) {
-      update(dt, false);
-    }
-  }
+  update(dt, false);
+  if (uStart == null) uStart = new Date();
 }
 
 function setBallMode() {
   if (dragType != "b") {
-      if (isNaN(newX1) || dragType == "k") {
-          newX1 = null;
-          newY1 = null;
+      if (newObj1 != null) {
+        if (newX1 != null) {
+          let point = getObjPoint(newObj1, newX1, newY1);
+          newX1 = point.x;
+          newY1 = point.y;
+        }
+        newObj1 = null;
       }
       newX2 = null;
       newY2 = null;
       newA = null;
-      newObj1 = null;
       newObj2 = null;
       dragType = "b";
   }
 }
 
-function setRectWallMode() {
-  if (dragType != "w") {
-      if (isNaN(newX1) || dragType == "k") {
+function setSpringMode() {
+  setConnectMode("k");
+}
+
+function setStringMode() {
+  setConnectMode("s");
+}
+
+function setConnectMode(type) {
+  if (dragType != "s" && dragType != "k") {
+    if (newX1 != null) {
+      newObj1 = new Point(newX1, newY1);
+      newX1 = 0;
+      newY1 = 0;
+    } else {
+      newObj1 = null;
+      newX1 = null;
+      newY1 = null;
+    }
+    if (newX2 != null) {
+      newObj1 = new Point(newX1, newY1);
+      newX1 = 0;
+      newY1 = 0;
+    } else {
+      newObj2 = null;
+      newX2 = null;
+      newY2 = null;
+    }
+  }
+  dragType = type;
+}
+
+function setWallMode(type) {
+  if (dragType != type) {
+      if (newObj1 != null) {
+        if (newX1 != null) {
+          let point = getObjPoint(newObj1, newX1, newY1);
+          newX1 = point.x;
+          newY1 = point.y;
+        }
+        newObj1 = null;
+      }
+      if (newObj2 != null) {
+        if (newX2 != null) {
+          let point = getObjPoint(newObj2, newX2, newY2);
+          newX2 = point.x;
+          newY2 = point.y;
+        }
+        newObj2 = null;
+      }
+      if (isNaN(newX1)) {
           newX1 = null;
           newY1 = null;
           newX2 = null;
           newY2 = null;
           newA = null;
-          newObj1 = null;
-          newObj2 = null;
       }
-      dragType = "w";
+      dragType = type;
   }
 }
 
+function setRectWallMode() {
+  setWallMode("w");
+}
+
 function setTriWallMode() {
-  if (dragType != "t") {
-      if (isNaN(newX1) || dragType == "k") {
-          newX1 = null;
-          newY1 = null;
-          newX2 = null;
-          newY2 = null;
-          newA = null;
-          newObj1 = null;
-          newObj2 = null;
-      }
-      dragType = "t";
-  }
+  setWallMode("t");
 }
 
 function setCircleWallMode() {
   if (dragType != "c") {
-      if (isNaN(newX1) || dragType == "k") {
+      if (newObj1 != null) {
+        if (newX1 != null) {
+          let point = getObjPoint(newObj1, newX1, newY1);
+          newX1 = point.x;
+          newY1 = point.y;
+        }
+        newObj1 = null;
+      }
+      if (isNaN(newX1) || dragType == "k" || dragType == "s") {
           newX1 = null;
           newY1 = null;
           newX2 = null;
           newY2 = null;
           newA = null;
-          newObj1 = null;
           newObj2 = null;
       }
       dragType = "c";
@@ -2697,33 +3109,19 @@ function setListWallMode() {
   }
 }
 
-function setSpringMode() {
-  if (dragType != "k") {
-    newX2 = null;
-    newY2 = null;
-    newObj2 = null;
-    if (newObj1 == null && newX1 != null) {
-      newObj1 = new Point(newX1, newY1);
-      newX1 = 0;
-      newY1 = 0;
-    }
-    dragType = "k";
-  }
-}
-
 function resetObjects() {
   if (balls.length != 0) {
     if (newObj1 != null && newObj1.objType == "ball") {
-      let a = newObj1.getA();
-      let ax = Math.cos(a);
-      let ay = Math.sin(a);
-      newObj1 = new Point(newObj1.getX() + newX1 * ax - newY1 * ay, newObj1.getY() + newX1r * ay + newY1 * ax);
+      newObj1 = getObjPoint(newObj1, newX1, newY1);
       newX1 = 0;
       newY1 = 0;
-    } else if (newObj2 != null && newObj2.objType == "ball") {
-      newObj2 = null;
     }
-    for (let s of springs) {
+    if (newObj2 != null && newObj2.objType == "ball") {
+      newObj2 = getObjPoint(newObj2, newX2, newY2);
+      newX2 = 0;
+      newY2 = 0;
+    }
+    for (let s of [...springs, ...strings]) {
       if (s.obj1.objType == "ball") s.pointifyObj1();
       if (s.obj2.objType == "ball") s.pointifyObj2();
     }
@@ -2732,22 +3130,23 @@ function resetObjects() {
       gotoMenu("main");
     }
     balls = [];
-  } else if (springs.length != 0) {
-    if (dragObj != null && dragObj.objType == "spring") {
+  } else if (springs.length != 0 || strings.length != 0) {
+    if (dragObj != null && (dragObj.objType == "spring" || dragObj.objType == "string")) {
       deleteDragObj();
       gotoMenu("main");
     }
     springs = [];
+    strings = [];
   } else if (walls.length != 0) {
     if (newObj1 != null && newObj1.objType == "wall") {
-      let a = newObj1.getA();
-      let ax = Math.cos(a);
-      let ay = Math.sin(a);
-      newObj1 = new Point(newObj1.getX() + newX1 * ax - newY1 * ay, newObj1.getY() + newX1r * ay + newY1 * ax);
+      newObj1 = getObjPoint(newObj1, newX1, newY1);
       newX1 = 0;
       newY1 = 0;
-    } else if (newObj2 != null && newObj2.objType == "wall") {
-      newObj2 = null;
+    }
+    if (newObj2 != null && newObj2.objType == "wall") {
+      newObj2 = getObjPoint(newObj2, newX2, newY2);
+      newX2 = 0;
+      newY2 = 0;
     }
     if (dragObj != null) {
       deleteDragObj();
@@ -2796,7 +3195,7 @@ document.onmousemove = function(event) {
     
     let n = menuObjShown() ? 2 : 0;
     for (v of getMenuValues()) {
-      v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop, n);
+      v.updateHover(clientX - main.width, clientY + document.getElementById("scroll").scrollTop, n);
       n += 1;
     }
     
@@ -2849,9 +3248,7 @@ document.onkeydown = function(event) {
         case "a":
             if (dragMode == undefined) {
                 dragMode = false;
-                if (dragObj != null) {
-                    drag(true);
-                }
+                if (objDraggable()) drag(true);
             }
             break;
         case "b":
@@ -2872,9 +3269,7 @@ document.onkeydown = function(event) {
         case "m":
             if (dragMode == undefined) {
                 dragMode = true;
-                if (dragObj != null) {
-                    drag(true);
-                }
+                if (objDraggable()) drag(true);
             }
             break;
         case "p":
@@ -2882,6 +3277,9 @@ document.onkeydown = function(event) {
             break;
         case "r":
             resetObjects();
+            break;
+        case "s":
+            setStringMode();
             break;
         case "t":
             setTriWallMode();
@@ -2907,20 +3305,21 @@ document.onkeyup = function(event) {
     
     switch (event.key.toLowerCase()) {
         case "a":
-            if (dragObj != null) {
-                drag(false);
-            }
-            dragMode = undefined;
-            break;
         case "m":
-            if (dragObj != null) {
-                drag(false);
-            }
+            if (objDraggable()) drag(false);
             dragMode = undefined;
             break;
     }
   }
     
+}
+
+document.onmousedown = function(event) {
+  mouseDown = true;
+}
+
+document.onmouseup = function(event) {
+  mouseDown = false;
 }
 
 main.onmousedown = function(event) {
@@ -2938,7 +3337,7 @@ main.onmousedown = function(event) {
       if (!pressedKeys.includes("control")) {
         
         if (search) {
-          for (s of springs.toReversed()) {
+          for (let s of springs.toReversed()) {
               if (s.containsPoint(mouseX, mouseY)) {
                 dragObj = s;
                 gotoMenu("spring");
@@ -2949,15 +3348,26 @@ main.onmousedown = function(event) {
         }
         
         if (search) {
-          for (b of balls.toReversed()) {
+          for (let s of strings.toReversed()) {
+              if (s.containsPoint(mouseX, mouseY)) {
+                dragObj = s;
+                gotoMenu("string");
+                search = false;
+                break;
+              }
+          }
+        }
+        
+        if (search) {
+          for (let b of balls.toReversed()) {
               if (b.containsPoint(mouseX, mouseY)) {
                 if (selectMenuObj) {
                   if (b != dragObj.obj1 && b != dragObj.obj2) {
                     dragObj["obj" + menuObjNum] = b;
                     selectMenuObj = false;
-                    menuType = "spring";
+                    menuType = dragObj.objType;
                   }
-                } else if (dragType == "k") {
+                } else if (dragType == "k" || dragType == "s") {
                   if (newObj1 == null) {
                     newObj1 = b;
                   }
@@ -2987,9 +3397,9 @@ main.onmousedown = function(event) {
                     if (w != dragObj.obj1 && w != dragObj.obj2) {
                       dragObj["obj" + menuObjNum] = w;
                       selectMenuObj = false;
-                      menuType = "spring";
+                      menuType = dragObj.objType;
                     }
-                  } else if (dragType == "k") {
+                  } else if (dragType == "k" || dragType == "s") {
                     if (newObj1 == null) {
                       newObj1 = w;
                     }
@@ -3016,8 +3426,8 @@ main.onmousedown = function(event) {
           dragObj["dx" + menuObjNum] = 0;
           dragObj["dy" + menuObjNum] = 0;
           selectMenuObj = false;
-          menuType = "spring";
-        } else if (dragType == "k") {
+          menuType = dragObj.objType;
+        } else if (dragType == "k" || dragType == "s") {
           if (newObj1 == null) {
             newObj1 = new Point(...alignPos(mouseX, mouseY));
             newX1 = 0;
@@ -3075,40 +3485,41 @@ main.onmouseup = function(event) {
 
 menu.onmousedown = function(event) {
   
-    if (inValue) {
-      inValue = false;
-      for (v of getMenuValues()) {
-        if (v.clicked) {
-          v.esc();
-        }
-      }
-    }
-    if (dragObj != null) {
-      updateMenuObjHover();
-      if (menuObjHovered) {
-        let menuObj = getShownMenuObj();
-        shift((menuObj.objType == "ball" ? menuObj.px : menuObj.centerX) - gameWidth / 2 - screenX, (menuObj.objType == "ball" ? menuObj.py : menuObj.centerY) - gameHeight / 2 - screenY);
-      }
-    }
-    let n = menuObjShown() ? 2 : 0;
+  if (inValue) {
+    inValue = false;
     for (v of getMenuValues()) {
-      v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop, n);
-      if (v.hovered) {
-        for (let w of getMenuValues()) {
-          w.hovered = false;
-        }
-        v.click();
-        inValue = v.clicked;
-        n = menuObjShown() ? 2 : 0;
-        for (let w of getMenuValues()) {
-          w.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop, n);
-          n += 1;
-        }
-        break;
+      if (v.clicked) {
+        v.esc();
       }
-      n += 1;
     }
   }
+  if (dragObj != null) {
+    updateMenuObjHover();
+    if (menuObjHovered) {
+      let menuObj = getShownMenuObj();
+      shift((menuObj.objType == "ball" ? menuObj.px : menuObj.centerX) - gameWidth / 2 - screenX, (menuObj.objType == "ball" ? menuObj.py : menuObj.centerY) - gameHeight / 2 - screenY);
+    }
+  }
+  let n = menuObjShown() ? 2 : 0;
+  for (v of getMenuValues()) {
+    v.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop, n);
+    if (v.hovered) {
+      for (let w of getMenuValues()) {
+        w.hovered = false;
+      }
+      v.click();
+      inValue = v.clicked;
+      n = menuObjShown() ? 2 : 0;
+      for (let w of getMenuValues()) {
+        w.updateHover(event.clientX - main.width, event.clientY + document.getElementById("scroll").scrollTop, n);
+        n += 1;
+      }
+      break;
+    }
+    n += 1;
+  }
+  
+}
 
 function setup() {
   
@@ -3157,8 +3568,9 @@ function setup() {
     "height": 10,
     "screenX": 0,
     "screenY": 0,
-    "distOffsetX": distOffsetX,
-    "distOffsetY": distOffsetY,
+    "distOffsetX": 0,
+    "distOffsetY": 0,
+    "randomness": 0,
     "G": 0,
     "gx": 0,
     "gy": 0,
@@ -3183,6 +3595,9 @@ function setup() {
     "kCoef": 400,
     "coilRatio": 5,
     "thicknessRatio": 0.1,
+    "stringStrength": 1,
+    "enforceStringMin": false,
+    "enforceStringMax": true,
   };
   
   let smallSettings = {
@@ -3206,6 +3621,9 @@ function setup() {
     new MenuButton("main", gotoMainMenu),
     new MenuButton("demos", function() {
       gotoMenu("presets_demos");
+    }),
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
     }),
     new MenuButton("save", function() {
       
@@ -3333,6 +3751,29 @@ function setup() {
             "color": s.color,
           });
         }
+        for (let s of strings) {
+          objects.push({
+            "objType": "string",
+            "obj1": s.obj1.objType == "point" ? s.obj1 : {
+              "objType": s.obj1.objType,
+              "index": (s.obj1.objType == "ball" ? balls : walls).indexOf(s.obj1)
+            },
+            "obj2": s.obj2.objType == "point" ? s.obj2 : {
+              "objType": s.obj2.objType,
+              "index": (s.obj2.objType == "ball" ? balls : walls).indexOf(s.obj2)
+            },
+            "dx1": s.dx1,
+            "dy1": s.dy1,
+            "dx2": s.dx2,
+            "dy2": s.dy2,
+            "length": s.length,
+            "strength": s.strength,
+            "size": s.size,
+            "enforceMin": s.enforceMin,
+            "enforceMax": s.enforceMax,
+            "color": s.color,
+          });
+        }
         
         menuValues.presets.push(new MenuPreset(true, new Preset("preset " + n, {
           "endTime": endTime,
@@ -3342,6 +3783,7 @@ function setup() {
           "screenY": screenY,
           "distOffsetX": distOffsetX,
           "distOffsetY": distOffsetY,
+          "randomness": randomness,
           "G": G,
           "gx": gx,
           "gy": gy,
@@ -3366,6 +3808,9 @@ function setup() {
           "kCoef": kCoef,
           "coilRatio": coilRatio,
           "thicknessRatio": thicknessRatio,
+          "stringStrength": stringStrength,
+          "enforceStringMin": enforceStringMin,
+          "enforceStringMax": enforceStringMax,
         }, objects)));
         
       }
@@ -3380,17 +3825,20 @@ function setup() {
     new MenuButton("general", function() {
       gotoMenu("presets_demos_general");
     }),
-    new MenuButton("collision labs", function() {
-      gotoMenu("presets_demos_collision");
+    new MenuButton("collisions", function() {
+      gotoMenu("presets_demos_collisions");
     }),
-    new MenuButton("slope labs", function() {
-      gotoMenu("presets_demos_slope");
+    new MenuButton("slopes", function() {
+      gotoMenu("presets_demos_slopes");
     }),
-    new MenuButton("spring labs", function() {
-      gotoMenu("presets_demos_spring");
+    new MenuButton("orbits", function() {
+      gotoMenu("presets_demos_orbits");
     }),
-    new MenuButton("orbit labs", function() {
-      gotoMenu("presets_demos_orbit");
+    new MenuButton("springs", function() {
+      gotoMenu("presets_demos_springs");
+    }),
+    new MenuButton("pendulums", function() {
+      gotoMenu("presets_demos_pendulums");
     }),
   ]
   
@@ -3419,7 +3867,7 @@ function setup() {
     }))
   ];
   
-  menuValues.presets_demos_collision = [
+  menuValues.presets_demos_collisions = [
     new MenuButton("demos", function() {
       gotoMenu("presets_demos");
     }),
@@ -3439,11 +3887,13 @@ function setup() {
         balls.push(new Ball(x, y, Math.random() * Math.PI * 2, (gameWidth / 2 - x) / t, (gameHeight / 2 - y) / t, (Math.random() * 4 - 2) * Math.PI, density * size ** 3, size, 0.5, 0, 0, 0, true, true, randColor()));
       }
     })),
-    new MenuPreset(false, new Preset("Newton's cradle", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":0,"bRestCoef":1,"bSFrictCoef":0,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":1,"wSFrictCoef":0,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"objType":"ball","px":2,"py":2,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":4,"py":2,"pa":0,"vx":0.00019702118716124594,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":5,"py":2,"pa":0,"vx":0.0001970101784573325,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":6,"py":2,"pa":0,"vx":0.00039012883899245006,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":7,"py":2,"pa":0,"vx":0.00019603112531174638,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":5,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":6,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":7,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":2,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":3,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":4,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":6,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":7,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":3,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":2,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{
+    new MenuPreset(false, new Preset("1D cradles", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":0,"bRestCoef":1,"bSFrictCoef":0,"bKFrictCoef":0,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":1,"wSFrictCoef":0,"wKFrictCoef":0,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"objType":"ball","px":2,"py":2,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":4,"py":2,"pa":0,"vx":0.00019702118716124594,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":5,"py":2,"pa":0,"vx":0.0001970101784573325,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":6,"py":2,"pa":0,"vx":0.00039012883899245006,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":7,"py":2,"pa":0,"vx":0.00019603112531174638,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":5,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":6,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":7,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":2,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":3,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":4,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":6,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":7,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":3,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":2,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{
       "objType":"rectWall","x1":0,"y1":0,"x2":0,"y2":7,"size":-1,"wRest":1,"wSFrict":0,"wKFrict":0,"color":"rgb(0,0,0)"},{"objType":"rectWall","x1":10,"y1":0,"x2":10,"y2":7,"size":1,"wRest":1,"wSFrict":0,"wKFrict":0,"color":"rgb(0,0,0)"}])),
+    new MenuPreset(false, new Preset("Newton's cradle", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":1,"bSFrictCoef":0,"bKFrictCoef":0,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":1,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0,"wKFrictCoef":0,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":1.9647239999999997,"py":1.13623,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":2.9647240000000004,"py":1.13623,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":5,"py":1,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":6,"py":1,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":7,"py":1,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"rectWall","x1":1,"y1":5.5,"x2":9,"y2":5.5,"size":-1,"wRest":1,"wSFrict":0,"wKFrict":0,"color":"rgb(63,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":-2,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":1},"dx1":-1,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":2},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":3},"dx1":1,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":4},"dx1":2,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"}])),
+    
   ];
   
-  menuValues.presets_demos_slope = [
+  menuValues.presets_demos_slopes = [
     new MenuButton("demos", function() {
       gotoMenu("presets_demos");
     }),
@@ -3455,7 +3905,15 @@ function setup() {
     new MenuPreset(false, new Preset("height to loop", {...smallSettings, "endTime":3.25,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.2,"windVX":0,"windVY":0,"collide":false,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"wSFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"objType":"ball","px":8.3,"py":3.15,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,191)"},{"objType":"ball","px":7.3,"py":3.9,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(63,63,191)"},{"objType":"ball","px":6.3,"py":4.6499999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,191)"},{"objType":"ball","px":5.3,"py":5.3999999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":4.3,"py":6.1499999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,191,0)"},{"objType":"ball","px":3.3,"py":6.8999999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":2,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,95,0)"},{"objType":"ball","px":2.3,"py":7.6499999999999995,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"rectWall","x1":1,"y1":8,"x2":9,"y2":2,"size":-0.5,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,0,0)"},{"objType":"circleWall","x":10.2,"y":3.6,"r1":2,"r2":2.5,"a1":4.06888608517438,"a2":8.78127506555907,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,0,0)"}])),
   ];
   
-  menuValues.presets_demos_spring = [
+  menuValues.presets_demos_orbits = [
+    new MenuButton("demos", function() {
+      gotoMenu("presets_demos");
+    }),
+    new MenuPreset(false, new Preset("mass (g=2r)", {...largeSettings, "endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"wSFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":50000000000,"angInc":15}, [{"objType":"ball","px":500000000000,"py":500000000000,"pa":0,"vx":0,"vy":-0.089349,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,191,0)"},{"objType":"ball","px":650000000000,"py":500000000000,"pa":0,"vx":0,"vy":29783,"va":0,"mass":2e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":350000000000,"py":500000000000,"pa":0,"vx":0,"vy":-29783,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"}])),
+    new MenuPreset(false, new Preset("distance (g=2r)", {...largeSettings, "endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"wSFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":50000000000,"angInc":15}, [{"objType":"ball","px":500000000000,"py":500000000000,"pa":0,"vx":0,"vy":-0.089349,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,191,0)"},{"objType":"ball","px":800000000000,"py":500000000000,"pa":0,"vx":0,"vy":21060,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":350000000000,"py":500000000000,"pa":0,"vx":0,"vy":-29783,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"}])),
+  ];
+  
+  menuValues.presets_demos_springs = [
     new MenuButton("demos", function() {
       gotoMenu("presets_demos");
     }),
@@ -3464,18 +3922,121 @@ function setup() {
     new MenuPreset(false, new Preset("number (g=2r)", {...smallSettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1}, [{"objType":"ball","px":3.5,"py":2.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":3.5,"py":5.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"rectWall","x1":1,"y1":1,"x2":1,"y2":7,"size":-1,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(191,191,0)"},{"objType":"spring","obj1":{"objType":"ball","index":1},"obj2":{"objType":"rectWall","index":0},"dx1":0,"dy1":0,"dx2":1.5,"dy2":9.184850993605148e-17,"equilibrium":4,"k":100,"size":-1,"coils":20,"thickness":0.1,"color":"rgb(63,0,0)"},{"objType":"spring","obj1":{"objType":"ball","index":0},"obj2":{"objType":"rectWall","index":0},"dx1":0,"dy1":0.75,"dx2":-0.75,"dy2":-4.592425496802574e-17,"equilibrium":4,"k":100,"size":-1,"coils":20,"thickness":0.1,"color":"rgb(0,63,0)"},{"objType":"spring","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":-2.25,"dy1":-1.5308084989341918e-17,"dx2":0,"dy2":-0.75,"equilibrium":4,"k":100,"size":-1,"coils":20,"thickness":0.1,"color":"rgb(0,63,0)"}])),
   ];
   
-  menuValues.presets_demos_orbit = [
+  menuValues.presets_demos_pendulums = [
     new MenuButton("demos", function() {
       gotoMenu("presets_demos");
     }),
-    new MenuPreset(false, new Preset("mass (g=2r)", {...largeSettings, "endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"wSFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":50000000000,"angInc":15}, [{"objType":"ball","px":500000000000,"py":500000000000,"pa":0,"vx":0,"vy":-0.089349,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,191,0)"},{"objType":"ball","px":650000000000,"py":500000000000,"pa":0,"vx":0,"vy":29783,"va":0,"mass":2e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":350000000000,"py":500000000000,"pa":0,"vx":0,"vy":-29783,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"}])),
-    new MenuPreset(false, new Preset("distance (g=2r)", {...largeSettings, "endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"wSFrictCoef":0.2,"drag0":0,"drag1":0,"drag2":0,"distInc":50000000000,"angInc":15}, [{"objType":"ball","px":500000000000,"py":500000000000,"pa":0,"vx":0,"vy":-0.089349,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,191,0)"},{"objType":"ball","px":800000000000,"py":500000000000,"pa":0,"vx":0,"vy":21060,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":350000000000,"py":500000000000,"pa":0,"vx":0,"vy":-29783,"va":0,"mass":1e+24,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"}])),
+    new MenuPreset(false, new Preset("angle (g=2r)", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":1.305407,"py":1.0607689999999999,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":3.631919,"py":1.2412299999999998,"pa":0,"vx":0,"vy":-0.2516330988098679,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"circleWall","x":2,"y":5,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(63,0,0)"},{"objType":"circleWall","x":5,"y":5,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":1},"obj2":{"objType":"ball","index":1},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15,"enforceMin":false,"enforceMax":true,"color":"rgb(0,191,0)"}])),
+    new MenuPreset(false, new Preset("length (g=2r)", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":1.482362,"py":1.068148,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":3.9647240000000004,"py":1.1362970000000001,"pa":0,"vx":0,"vy":-0.2516330988098679,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"circleWall","x":2,"y":3,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(63,0,0)"},{"objType":"circleWall","x":5,"y":5,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":2,"strength":1,"size":0.15,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":1},"obj2":{"objType":"ball","index":1},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15,"enforceMin":false,"enforceMax":true,"color":"rgb(0,191,0)"}])),
+    new MenuPreset(false, new Preset("mass (g=4r)", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":0.964724,"py":1.1362970000000001,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":3.9647240000000004,"py":1.1362970000000001,"pa":0,"vx":0,"vy":-0.2516330988098679,"va":0,"mass":4,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"circleWall","x":2,"y":5,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(63,0,0)"},{"objType":"circleWall","x":5,"y":5,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":1},"obj2":{"objType":"ball","index":1},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15,"enforceMin":false,"enforceMax":true,"color":"rgb(0,191,0)"}])),
+  ];
+  
+  menuValues.presets_challenges = [
+    new MenuButton("presets", function() {
+      gotoMenu("presets");
+    }),
+    new MenuButton("find g", function() {
+      gotoMenu("presets_challenges_g");
+    }),
+    new MenuButton("find mass", function() {
+      gotoMenu("presets_challenges_mass");
+    }),
+    new MenuButton("find moi", function() {
+      gotoMenu("presets_challenges_moi");
+    }),
+    new MenuButton("find k", function() {
+      gotoMenu("presets_challenges_k");
+    }),
+    new MenuButton("find wall values", function() {
+      gotoMenu("presets_challenges_wall");
+    }),
+    new MenuButton("find drag (v¹)", function() {
+      gotoMenu("presets_challenges_drag");
+    }),
+  ];
+  
+  function setRandom_g(base = 2.5) {
+    gy = -base * 16 ** Math.random();
+  }
+  
+  menuValues.presets_challenges_g = [
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
+    }),
+    new MenuPreset(false, new Preset("falling ball", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.5,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":2,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"rectWall","x1":-1,"y1":-1,"x2":21,"y2":-1,"size":2,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"}],setRandom_g)),
+    new MenuPreset(false, new Preset("pendulum", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":4,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"circleWall","x":5,"y":8,"r1":0,"r2":0.5,"a1":0,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"string","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(0,191,0)"}],setRandom_g)),
+    new MenuPreset(false, new Preset("hanging spring", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":4,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"circleWall","x":5,"y":8,"r1":0,"r2":0.5,"a1":0,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"spring","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"equilibrium":4,"k":100,"size":0.5,"coils":40,"thickness":0.05,"color":"rgb(0,191,0)"}],setRandom_g)),
+  ];
+  
+  function setRandom_mass(base = 2) {
+    balls[0].mass = base * 16 ** Math.random();
+  }
+  
+  menuValues.presets_challenges_mass = [
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
+    }),
+    new MenuPreset(false, new Preset("known ball", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":2,"py":2,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":5,"py":2,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"}],setRandom_mass)),
+    new MenuPreset(false, new Preset("known spring", {"endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":8.5,"py":4.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"circleWall","x":4.5,"y":4.5,"r1":0,"r2":0.5,"a1":0,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"spring","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"equilibrium":4,"k":100,"size":0.5,"coils":40,"thickness":0.05,"color":"rgb(0,191,0)"}],setRandom_mass)),
+    new MenuPreset(false, new Preset("hanging spring", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":4,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"circleWall","x":5,"y":8,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"spring","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"equilibrium":4,"k":100,"size":0.5,"coils":40,"thickness":0.05,"color":"rgb(0,191,0)"}],setRandom_mass)),
+    new MenuPreset(false, new Preset("sun", {...emptySettings, "endTime":-1,"speed":3153600,"height":1000000000000,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":6.67e-11,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":50000000000,"angInc":15,"density":0.01,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":0.00001,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":400000000000,"py":350000000000,"pa":0,"vx":0,"vy":0,"va":0,"mass":2e+30,"size":40000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":550000000000,"py":350000000000,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":20000000000,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"}],function() {setRandom_mass(5 * 10 ** 29)})),
+  ];
+  
+  function setRandom_moi() {
+    balls[0].setMOICoef(Math.random());
+  }
+  
+  menuValues.presets_challenges_moi = [
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
+    }),
+    new MenuPreset(false, new Preset("rolling", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":2,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"rectWall","x1":-1,"y1":-1,"x2":21,"y2":-1,"size":2,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(63,0,0)"}], setRandom_moi)),
+  ];
+  
+  function setRandom_k(base = 25) {
+    springs[0].k = base * 16 ** Math.random();
+  }
+  
+  menuValues.presets_challenges_k = [
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
+    }),
+    new MenuPreset(false, new Preset("known ball", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":8.5,"py":4.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"circleWall","x":4.5,"y":4.5,"r1":0,"r2":0.5,"a1":0,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"spring","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"equilibrium":4,"k":100,"size":0.5,"coils":40,"thickness":0.05,"color":"rgb(191,0,0)"}],setRandom_k)),
+    new MenuPreset(false, new Preset("hanging ball", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":4,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"circleWall","x":5,"y":8,"r1":0,"r2":0.5,"a1":12.566371,"a2":6.283185,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(0,63,0)"},{"objType":"spring","obj1":{"objType":"circleWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"equilibrium":4,"k":100,"size":0.5,"coils":40,"thickness":0.05,"color":"rgb(191,0,0)"}], setRandom_k)),
+  ];
+  
+  menuValues.presets_challenges_wall = [
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
+    }),
+    new MenuPreset(false, new Preset("rest (known ball)", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":2,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"},{"objType":"rectWall","x1":-1,"y1":-1,"x2":21,"y2":-1,"size":2,"wRest":0.99,"wSFrict":0.5,"wKFrict":0.2,"color":"rgb(63,0,0)"}], function() {
+      walls[0].wRest = Math.random();
+    })),
+    new MenuPreset(false, new Preset("μₛ (known box)", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":3.5,"py":3,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":false,"color":"rgb(0,127,0)"},{"objType":"rectWall","x1":1,"y1":1,"x2":6,"y2":1,"size":1,"wRest":0.99,"wSFrict":1,"wKFrict":0,"color":"rgb(63,0,0)"}], function() {
+      walls[0].wSFrict = Math.random();
+    })),
+    new MenuPreset(false, new Preset("μₖ (known box)", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":2,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":false,"color":"rgb(0,127,0)"},{"objType":"rectWall","x1":-1,"y1":-1,"x2":21,"y2":-1,"size":2,"wRest":0.99,"wSFrict":1,"wKFrict":0,"color":"rgb(63,0,0)"}], function() {
+      walls[0].wKFrict = Math.random();
+    })),
+  ];
+  
+  function setRandom_drag(base = 1) {
+    balls[0].drag1 = base * 16 ** Math.random();
+  }
+  
+  menuValues.presets_challenges_drag = [
+    new MenuButton("challenges", function() {
+      gotoMenu("presets_challenges");
+    }),
+    new MenuPreset(false, new Preset("falling", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":-9.8,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"}], setRandom_drag)),
+    new MenuPreset(false, new Preset("empty", {...emptySettings, "endTime":-1,"speed":1,"height":12,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"randomness":0.2,"G":0,"gx":0,"gy":0,"bRestCoef":0.99,"bSFrictCoef":0.5,"bKFrictCoef":0.2,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":0.99,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0.5,"wKFrictCoef":0.2,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":5,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":8,"size":2,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,127,0)"}], setRandom_drag)),
   ];
   
   menuValues.objects = [
     new MenuButton("main", gotoMainMenu),
     new MenuButton("ball", setBallMode),
     new MenuButton("spring", setSpringMode),
+    new MenuButton("string", setStringMode),
     new MenuButton("rectangle wall", setRectWallMode),
     new MenuButton("triangle wall", setTriWallMode),
     new MenuButton("circle wall", setCircleWallMode),
@@ -3493,6 +4054,9 @@ function setup() {
     }),
     new MenuButton("springs", function() {
       gotoMenu("defaults_springs");
+    }),
+    new MenuButton("strings", function() {
+      gotoMenu("defaults_strings");
     }),
     new MenuButton("walls", function() {
       gotoMenu("defaults_walls");
@@ -3553,6 +4117,21 @@ function setup() {
     }),
   ];
   
+  menuValues.defaults_strings = [
+    new MenuButton("defaults", function() {
+      gotoMenu("defaults");
+    }),
+    new MenuFloat("strength", true, () => (stringStrength), function(stringStrength1) {
+      stringStrength = stringStrength1;
+    }),
+    new MenuBoolean("min", true, () => (enforceStringMin), function() {
+      enforceStringMin = !enforceStringMin;
+    }),
+    new MenuBoolean("max", true, () => (enforceStringMax), function() {
+      enforceStringMax = !enforceStringMax;
+    }),
+  ];
+  
   menuValues.defaults_walls = [
     new MenuButton("defaults", function() {
       gotoMenu("defaults");
@@ -3590,6 +4169,9 @@ function setup() {
     }),
     new MenuFloat("height", true, () => (gameHeight), function(height) {
       zoom(height / gameHeight);
+    }),
+    new MenuFloat("random", true, () => (randomness), function(randomness1) {
+      randomness = randomness1;
     }),
   ];
   
@@ -3732,8 +4314,11 @@ function setup() {
       dragObj.mass = mass;
       dragObj.updateMOI();
     }),
-    new MenuFloat("moi", true, () => (dragObj.moiCoef), function(moiCoef) {
+    new MenuFloat("moi coef", true, () => (dragObj.moiCoef), function(moiCoef) {
       dragObj.setMOICoef(moiCoef);
+    }),
+    new MenuFloat("moi", true, () => (dragObj.moi), function(moi) {
+      dragObj.setMOI(moi);
     }),
     new MenuBoolean("movable", true, () => (dragObj.movable), function() {
       dragObj.movable = !dragObj.movable;
@@ -3753,8 +4338,8 @@ function setup() {
     new MenuFloat("py", true, () => (dragObj.py + distOffsetY), function(py) {
       dragObj.py = py - distOffsetY;
     }),
-    new MenuFloat("pa", true, () => (dragObj.pa), function(pa) {
-      dragObj.pa = pa;
+    new MenuFloat("pa", true, () => (dragObj.pa * 180 / Math.PI), function(pa) {
+      dragObj.pa = pa * Math.PI / 180;
     }),
   ];
   
@@ -3768,8 +4353,8 @@ function setup() {
     new MenuFloat("vy", true, () => (dragObj.vy), function(vy) {
       dragObj.vy = vy;
     }),
-    new MenuFloat("va", true, () => (dragObj.va), function(va) {
-      dragObj.va = va;
+    new MenuFloat("va", true, () => (dragObj.va * 180 / Math.PI), function(va) {
+      dragObj.va = va * Math.PI / 180;
     }),
   ];
   
@@ -3873,6 +4458,113 @@ function setup() {
   menuValues.spring_object = [
     new MenuButton("spring", function() {
       gotoMenu("spring");
+    }),
+    new MenuBoolean("select", true, () => selectMenuObj, function() {
+      selectMenuObj = !selectMenuObj;
+    }),
+    new MenuFloat("dx", true, () => (dragObj["getPos" + menuObjNum](0, 0)[0]), function(dx) {
+      let a = dragObj["obj" + menuObjNum].getA();
+      let ax = Math.cos(a);
+      let ay = Math.sin(a);
+      let dy = dragObj["getPos" + menuObjNum](0, 0)[1];
+      dragObj["dx" + menuObjNum] = dx * ax + dy * ay;
+      dragObj["dy" + menuObjNum] = - dx * ay + dy * ax;
+    }),
+    new MenuFloat("dy", true, () => (dragObj["getPos" + menuObjNum](0, 0)[1]), function(dy) {
+      let a = dragObj["obj" + menuObjNum].getA();
+      let ax = Math.cos(a);
+      let ay = Math.sin(a);
+      let dx = dragObj["getPos" + menuObjNum](0, 0)[0];
+      dragObj["dy" + menuObjNum] = - dx * ay + dy * ax;
+      dragObj["dx" + menuObjNum] = dx * ax + dy * ay;
+    }),
+  ];
+  
+  menuValues.string_main = [
+    new MenuButton("string", function() {
+      gotoMenu("string");
+    }),
+    new MenuButton("timing", function() {
+      gotoMenu("timing");
+    }),
+    new MenuButton("presets", function() {
+      gotoMenu("presets");
+    }),
+    new MenuButton("objects", function() {
+      gotoMenu("objects");
+    }),
+    new MenuButton("defaults", function() {
+      gotoMenu("defaults");
+    }),
+    new MenuButton("variables", function() {
+      gotoMenu("variables");
+    }),
+    new MenuButton("info", function() {
+      gotoMenu("info");
+    }),
+  ];
+  
+  menuValues.string = [
+    new MenuButton("main", function() {
+      gotoMenu("string_main");
+    }),
+    new MenuButton("general", function() {
+      gotoMenu("string_general");
+    }),
+    new MenuButton("object 1", function() {
+      menuObjNum = 1;
+      gotoMenu(dragObj.obj1.objType == "point" ? "string_point" : "string_object");
+    }),
+    new MenuButton("object 2", function() {
+      menuObjNum = 2;
+      gotoMenu(dragObj.obj2.objType == "point" ? "string_point" : "string_object");
+    }),
+    new MenuButton("delete", deleteDragObj),
+  ];
+  
+  menuValues.string_general = [
+    new MenuButton("string", function() {
+      gotoMenu("string");
+    }),
+    new MenuString("color", true, () => (stringifyColor(dragObj.color)), function(color1) {
+      dragObj.color = formatColor(color1);
+    }),
+    new MenuFloat("length", false, () => dist(...dragObj.getPos1(), ...dragObj.getPos2())),
+    new MenuFloat("x̄", true, () => (dragObj.length), function(length) {
+      dragObj.length = length;
+    }),
+    new MenuFloat("strength", true, () => (dragObj.strength), function(strength) {
+      dragObj.strength = strength;
+    }),
+    new MenuFloat("size", true, () => (dragObj.size), function(size) {
+      dragObj.size = size;
+    }),
+    new MenuBoolean("min", true, () => (dragObj.enforceMin), function() {
+      dragObj.enforceMin = !dragObj.enforceMin;
+    }),
+    new MenuBoolean("max", true, () => (dragObj.enforceMax), function() {
+      dragObj.enforceMax = !dragObj.enforceMax;
+    })
+  ];
+  
+  menuValues.string_point = [
+    new MenuButton("string", function() {
+      gotoMenu("string");
+    }),
+    new MenuBoolean("select", true, () => selectMenuObj, function() {
+      selectMenuObj = !selectMenuObj;
+    }),
+    new MenuFloat("x", true, () => (dragObj["obj" + menuObjNum].x + distOffsetX), function(x) {
+      dragObj["obj" + menuObjNum].x = x - distOffsetX;
+    }),
+    new MenuFloat("y", true, () => (dragObj["obj" + menuObjNum].y + distOffsetY), function(y) {
+      dragObj["obj" + menuObjNum].y = y - distOffsetY;
+    }),
+  ];
+  
+  menuValues.string_object = [
+    new MenuButton("string", function() {
+      gotoMenu("string");
     }),
     new MenuBoolean("select", true, () => selectMenuObj, function() {
       selectMenuObj = !selectMenuObj;
@@ -4093,7 +4785,7 @@ function update(dt, end = true) {
           b.update1(dt);
       }
   }
-  for (let s of springs) {
+  for (s of springs) {
       s.force();
   }
   for (b of balls) {
@@ -4111,13 +4803,16 @@ function update(dt, end = true) {
           b.update4(dt);
       }
   }
-  for (let s of springs) {
-      s.getEnergies();
+  for (s of strings) {
+      s.push();
   }
   for (b of balls) {
       if (b != dragObj || dragMode == undefined) {
           b.update5(dt);
       }
+  }
+  for (s of springs) {
+      s.getEnergies();
   }
   for (b of balls) {
       if (b != dragObj || dragMode == undefined) {
@@ -4134,6 +4829,19 @@ function update(dt, end = true) {
           b.update8(dt);
       }
   }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update9(dt);
+      }
+  }
+  for (s of strings) {
+      s.force();
+  }
+  for (b of balls) {
+      if (b != dragObj || dragMode == undefined) {
+          b.update10(dt);
+      }
+  }
 }
 
 function show() {
@@ -4142,16 +4850,8 @@ function show() {
   ctxMain.fillStyle = "#efff9f";
   ctxMain.fillRect(screenX, screenY, main.width / scaleFactor, main.height / scaleFactor);
   
-  for (w of walls) {
-      w.show();
-  }
-  
-  for (b of balls) {
-      b.show();
-  }
-  
-  for (s of springs) {
-      s.show();
+  for (o of [...walls, ...balls, ...strings, ...springs]) {
+      o.show();
   }
   
   if (selectMenuObj) {
@@ -4190,6 +4890,24 @@ function show() {
     }
   } else {
     let size;
+    let alphaColor = getRGBA(newColor, 50);
+    let x1;
+    let y1;
+    let x2;
+    let y2;
+    let r1;
+    let r2;
+    let a1;
+    let a2;
+    let n;
+    let a;
+    let ax;
+    let ay;
+    let length;
+    let p2;
+    let search;
+    let b;
+    let w;
     switch (dragType) {
       case "b":
         if (newX1 != null) {
@@ -4229,13 +4947,13 @@ function show() {
         break;
       case "c":
         if (newX2 != null) {
-          let r1 = alignNum(dist(newX1, newY1, newX2, newY2));
-          let r2 = alignNum(dist(newX1, newY1, mouseX, mouseY));
+          r1 = alignNum(dist(newX1, newY1, newX2, newY2));
+          r2 = alignNum(dist(newX1, newY1, mouseX, mouseY));
           if (Math.abs(r2 - r1) < minDrag / scaleFactor) {
               r2 = 0;
           }
-          let a1 = angle(newX1, newY1, newX2, newY2);
-          let a2 = alignAngle(a1 + newA);
+          a1 = angle(newX1, newY1, newX2, newY2);
+          a2 = alignAngle(a1 + newA);
           if (Math.abs(a2 - a1) * (r1 + r2) / 2 < minDrag / scaleFactor || Math.abs(a2 - a1) >= Math.PI * 2) {
               a2 = a1 + (a2 - a1 >= 0 ? 1 : -1) * Math.PI * 2;
           }
@@ -4261,7 +4979,7 @@ function show() {
           ctxMain.lineCap = "but" + "t";
           ctxMain.beginPath();
           ctxMain.moveTo(newX1[0], newY1[0])
-          for (let n = 1; n < newX1.length; n++) {
+          for (n = 1; n < newX1.length; n++) {
               ctxMain.lineTo(newX1[n], newY1[n]);
           }
           ctxMain.stroke();
@@ -4269,14 +4987,7 @@ function show() {
         break;
       case "k":
         scale();
-        let alphaColor = getRGBA(newColor, 50);
-        let x1;
-        let y1;
-        let x2;
-        let y2;
         if (newX1 != null) {
-          let ax;
-          let ay;
           switch (newObj1.objType) {
             case "point":
               size = gameHeight / 20;
@@ -4303,18 +5014,18 @@ function show() {
           }
         }
         if (newX2 != null) {
-          let a = newObj2.getA();
-          let ax = Math.cos(a);
-          let ay = Math.sin(a);
+          a = newObj2.getA();
+          ax = Math.cos(a);
+          ay = Math.sin(a);
           x2 = newObj2.getX() + newX2 * ax - newY2 * ay;
           y2 = newObj2.getY() + newX2 * ay + newY2 * ax;
           if (x1 != x2 || y1 != y2) {
-            let length = dist(x1, y1, x2, y2);
+            length = dist(x1, y1, x2, y2);
             size = 2 * alignNum(((mouseX - x2) * (y2 - y1) - (mouseY - y2) * (x2 - x1)) / length);
             if (Math.abs(size) * scaleFactor >= minDrag) drawSpring(x1, y1, x2, y2, size, Math.ceil(Math.abs(coilRatio * length / size)), Math.abs(thicknessRatio * size), newColor);
           }
         } else if (newObj2 != null) {
-          let p2;
+          p2;
           switch (newObj2.objType) {
             case "point":
               p2 = alignLine(newObj1.getX() + newX1, newObj1.getY() + newY1, mouseX, mouseY);
@@ -4349,8 +5060,8 @@ function show() {
           ctxMain.stroke();
           
           if (!pressedKeys.includes("control")) {
-            let search = true;
-            for (let b of balls.toReversed()) {
+            search = true;
+            for (b of balls.toReversed()) {
               if (b != newObj1 && b.containsPoint(mouseX, mouseY)) {
                 search = false;
                 drawBall(b.px, b.py, b.pa, b.size, alphaColor, ctx=ctxMain, lines=false);
@@ -4358,7 +5069,7 @@ function show() {
               }
             }
             if (search) {
-              for (let w of walls.toReversed()) {
+              for (w of walls.toReversed()) {
                 if (w != newObj1 && w.containsPoint(mouseX, mouseY)) {
                   switch (w.objType) {
                     case "rectWall":
@@ -4398,8 +5109,8 @@ function show() {
           ctxMain.fill();
         } else if (dragObj == null) {
           if (!pressedKeys.includes("control")) {
-            let search = true;
-            for (let b of balls.toReversed()) {
+            search = true;
+            for (b of balls.toReversed()) {
               if (b.containsPoint(mouseX, mouseY)) {
                 search = false;
                 drawBall(b.px, b.py, b.pa, b.size, alphaColor, ctx=ctxMain, lines=false);
@@ -4407,7 +5118,163 @@ function show() {
               }
             }
             if (search) {
-              for (let w of walls.toReversed()) {
+              for (w of walls.toReversed()) {
+                if (w.containsPoint(mouseX, mouseY)) {
+                  switch (w.objType) {
+                    case "rectWall":
+                      drawRectWall(w.x1, w.y1, w.x2, w.y2, w.size, alphaColor);
+                      break;
+                    case "triWall":
+                      drawTriWall(w.x, w.y, alphaColor);
+                      break;
+                    case "circleWall":
+                      drawCircleWall(w.x, w.y, w.r1, w.r2, w.a1, w.a2, alphaColor);
+                      break;
+                    case "listWall":
+                      drawListWall(w.walls, alphaColor);
+                      break;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
+        break;
+      case "s":
+        scale();
+        if (newX1 != null) {
+          switch (newObj1.objType) {
+            case "point":
+              size = gameHeight / 20;
+              x1 = newObj1.x;
+              y1 = newObj1.y;
+              break;
+            case "ball":
+              ax = Math.cos(newObj1.pa);
+              ay = Math.sin(newObj1.pa);
+              size = newObj1.size / 6;
+              x1 = newObj1.px + newX1 * ax - newY1 * ay;
+              y1 = newObj1.py + newX1 * ay + newY1 * ax;
+              break;
+            case "rectWall":
+            case "triWall":
+            case "circleWall":
+            case "listWall":
+              ax = Math.cos(newObj1.angle);
+              ay = Math.sin(newObj1.angle);
+              size = newObj1.offsetSize / 10;
+              x1 = newObj1.centerX + newX1 * ax - newY1 * ay;
+              y1 = newObj1.centerY + newX1 * ay + newY1 * ax;
+              break;
+          }
+        }
+        if (newX2 != null) {
+          a = newObj2.getA();
+          ax = Math.cos(a);
+          ay = Math.sin(a);
+          x2 = newObj2.getX() + newX2 * ax - newY2 * ay;
+          y2 = newObj2.getY() + newX2 * ay + newY2 * ax;
+          if (x1 != x2 || y1 != y2) {
+            length = dist(x1, y1, x2, y2);
+            size = 2 * alignNum(((mouseX - x2) * (y2 - y1) - (mouseY - y2) * (x2 - x1)) / length);
+            if (Math.abs(size) * scaleFactor >= minDrag) drawString(x1, y1, x2, y2, Math.abs(size), newColor);
+          }
+        } else if (newObj2 != null) {
+          p2;
+          switch (newObj2.objType) {
+            case "point":
+              p2 = alignLine(newObj1.getX() + newX1, newObj1.getY() + newY1, mouseX, mouseY);
+              break;
+            case "ball":
+              p2 = alignDist(newObj2.px, newObj2.py, mouseX, mouseY, align=true, a1=newObj2.pa);
+              break;
+            case "rectWall":
+            case "triWall":
+            case "listWall":
+              p2 = alignLine(newObj2.centerX, newObj2.centerY, mouseX, mouseY, align=true, ax=Math.cos(newObj2.angle), ay=Math.sin(newObj2.angle));
+              break;
+            case "circleWall":
+              p2 = alignDist(newObj2.centerX, newObj2.centerY, mouseX, mouseY, align=true, a1=newObj2.a1);
+              break;
+          }
+          ctxMain.beginPath();
+          ctxMain.strokeStyle = newColor;
+          ctxMain.lineCap = "round";
+          ctxMain.lineWidth = 2 / scaleFactor;
+          ctxMain.moveTo(x1, y1);
+          ctxMain.lineTo(...p2);
+          ctxMain.stroke();
+        } else if (newX1 != null) {
+          
+          ctxMain.beginPath();
+          ctxMain.strokeStyle = newColor;
+          ctxMain.lineCap = "round";
+          ctxMain.lineWidth = 2 / scaleFactor;
+          ctxMain.moveTo(x1, y1);
+          ctxMain.lineTo(...alignLine(x1, y1, mouseX, mouseY));
+          ctxMain.stroke();
+          
+          if (!pressedKeys.includes("control")) {
+            search = true;
+            for (b of balls.toReversed()) {
+              if (b != newObj1 && b.containsPoint(mouseX, mouseY)) {
+                search = false;
+                drawBall(b.px, b.py, b.pa, b.size, alphaColor, ctx=ctxMain, lines=false);
+                break;
+              }
+            }
+            if (search) {
+              for (w of walls.toReversed()) {
+                if (w != newObj1 && w.containsPoint(mouseX, mouseY)) {
+                  switch (w.objType) {
+                    case "rectWall":
+                      drawRectWall(w.x1, w.y1, w.x2, w.y2, w.size, alphaColor);
+                      break;
+                    case "triWall":
+                      drawTriWall(w.x, w.y, alphaColor);
+                      break;
+                    case "circleWall":
+                      drawCircleWall(w.x, w.y, w.r1, w.r2, w.a1, w.a2, alphaColor);
+                      break;
+                    case "listWall":
+                      drawListWall(w.walls, alphaColor);
+                      break;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        } else if (newObj1 != null) {
+          ctxMain.fillStyle = alphaColor;
+          ctxMain.beginPath();
+          switch (newObj1.objType) {
+            case "ball":
+              ctxMain.arc(...alignDist(newObj1.px, newObj1.py, mouseX, mouseY, align=true, a1=newObj1.pa), newObj1.size / 12, 0, Math.PI * 2);
+              break;
+            case "rectWall":
+            case "triWall":
+            case "listWall":
+              ctxMain.arc(...alignLine(newObj1.centerX, newObj1.centerY, mouseX, mouseY, align=true, ax=Math.cos(newObj1.angle), ay=Math.sin(newObj1.angle)), newObj1.offsetSize / 20, 0, Math.PI * 2);
+              break;
+            case "circleWall":
+              ctxMain.arc(...alignDist(newObj1.centerX, newObj1.centerY, mouseX, mouseY, align=true, a1=newObj1.a1), newObj1.offsetSize / 20, 0, Math.PI * 2);
+              break;
+          }
+          ctxMain.fill();
+        } else if (dragObj == null) {
+          if (!pressedKeys.includes("control")) {
+            search = true;
+            for (b of balls.toReversed()) {
+              if (b.containsPoint(mouseX, mouseY)) {
+                search = false;
+                drawBall(b.px, b.py, b.pa, b.size, alphaColor, ctx=ctxMain, lines=false);
+                break;
+              }
+            }
+            if (search) {
+              for (w of walls.toReversed()) {
                 if (w.containsPoint(mouseX, mouseY)) {
                   switch (w.objType) {
                     case "rectWall":
@@ -4441,28 +5308,31 @@ function showMenu() {
   ctxMenu.fillRect(0, 0, menu.width, menu.height);
   
   let obj = getShownMenuObj();
+  let wList;
+  let p1;
+  let p2;
   if (obj != null) {
     let x;
     let y;
-    let sizeScale = (menuObjHovered ? 1.08 : 1) * menu.width * 3 / 5 / obj.offsetSize;
+    let menuScale = (menuObjHovered ? 1.08 : 1) * menu.width * 3 / 5 / obj.offsetSize;
     switch (obj.objType) {
       case "ball":
         drawBall(menu.width / 2, menu.width * 2 / 5, -obj.pa, menu.width * 3 / 5 * (menuObjHovered ? 1.08 : 1), obj.color, ctxMenu);
         break;
       case "rectWall":
-        drawRectWall(menu.width / 2 + (obj.x1 - obj.centerX - obj.offsetX) * sizeScale, menu.width * 2 / 5 - (obj.y1 - obj.centerY - obj.offsetY) * sizeScale, menu.width / 2 + (obj.x2 - obj.centerX - obj.offsetX) * sizeScale, menu.width * 2 / 5 - (obj.y2 - obj.centerY - obj.offsetY) * sizeScale, -obj.size * sizeScale, obj.color, ctxMenu);
+        drawRectWall(menu.width / 2 + (obj.x1 - obj.centerX - obj.offsetX) * menuScale, menu.width * 2 / 5 - (obj.y1 - obj.centerY - obj.offsetY) * menuScale, menu.width / 2 + (obj.x2 - obj.centerX - obj.offsetX) * menuScale, menu.width * 2 / 5 - (obj.y2 - obj.centerY - obj.offsetY) * menuScale, -obj.size * menuScale, obj.color, ctxMenu);
         break;
       case "triWall":
         x = [];
         y = [];
         for (let n = 0; n < obj.num; n++) {
-          x.push(menu.width / 2 + (obj.x[n] - obj.centerX - obj.offsetX) * sizeScale);
-          y.push(menu.width * 2 / 5 - (obj.y[n] - obj.centerY - obj.offsetY) * sizeScale);
+          x.push(menu.width / 2 + (obj.x[n] - obj.centerX - obj.offsetX) * menuScale);
+          y.push(menu.width * 2 / 5 - (obj.y[n] - obj.centerY - obj.offsetY) * menuScale);
         }
         drawTriWall(x, y, obj.color, ctxMenu);
         break;
       case "circleWall":
-        drawCircleWall(menu.width / 2 + (obj.x - obj.centerX - obj.offsetX) * sizeScale, menu.width * 2 / 5 - (obj.y - obj.centerY - obj.offsetY) * sizeScale, obj.r1 * sizeScale, obj.r2 * sizeScale, -obj.a2, -obj.a1, obj.color, ctxMenu);
+        drawCircleWall(menu.width / 2 + (obj.x - obj.centerX - obj.offsetX) * menuScale, menu.width * 2 / 5 - (obj.y - obj.centerY - obj.offsetY) * menuScale, obj.r1 * menuScale, obj.r2 * menuScale, -obj.a2, -obj.a1, obj.color, ctxMenu);
         break;
       case "listWall":
         let wList = [];
@@ -4470,8 +5340,8 @@ function showMenu() {
           x = [];
           y = [];
           for (let n = 0; n < w.num; n++) {
-            x.push(menu.width / 2 + (w.x[n] - obj.centerX - obj.offsetX) * sizeScale);
-            y.push(menu.width * 2 / 5 - (w.y[n] - obj.centerY - obj.offsetY) * sizeScale);
+            x.push(menu.width / 2 + (w.x[n] - obj.centerX - obj.offsetX) * menuScale);
+            y.push(menu.width * 2 / 5 - (w.y[n] - obj.centerY - obj.offsetY) * menuScale);
           }
           wList.push([x, y, wRestCoef, wSFrictCoef, wKFrictCoef, w.color]);
         }
@@ -4479,14 +5349,23 @@ function showMenu() {
         break;
       case "spring":
         obj.setVars();
-        let menuScale = menu.width * 3 / 5 / obj.offsetSize * (menuObjHovered ? 1.08 : 1);
-        let p1 = obj.getPos1();
+        p1 = obj.getPos1();
         p1[0] = menu.width / 2 + (p1[0] - obj.centerX) * menuScale;
         p1[1] = menu.width * 2 / 5 - (p1[1] - obj.centerY) * menuScale;
-        let p2 = obj.getPos2();
+        p2 = obj.getPos2();
         p2[0] = menu.width / 2 + (p2[0] - obj.centerX) * menuScale;
         p2[1] = menu.width * 2 / 5 - (p2[1] - obj.centerY) * menuScale;
         drawSpring(...p1, ...p2, obj.size * menuScale, obj.coils, obj.thickness * menuScale, obj.color, ctxMenu);
+        break;
+      case "string":
+        obj.setVars();
+        p1 = obj.getPos1();
+        p1[0] = menu.width / 2 + (p1[0] - obj.centerX) * menuScale;
+        p1[1] = menu.width * 2 / 5 - (p1[1] - obj.centerY) * menuScale;
+        p2 = obj.getPos2();
+        p2[0] = menu.width / 2 + (p2[0] - obj.centerX) * menuScale;
+        p2[1] = menu.width * 2 / 5 - (p2[1] - obj.centerY) * menuScale;
+        drawString(...p1, ...p2, Math.abs(obj.size) * menuScale, obj.color, ctxMenu);
         break;
     }
   }
@@ -4574,7 +5453,7 @@ function frame(time) {
                   }
                 }
             }
-        } else {;
+        } else if (objDraggable()) {
             if (dragMode == true) {
                 dragObj.move(alignX(mouseX + dragOffsetX) - dragObj.centerX, alignY(mouseY + dragOffsetY) - dragObj.centerY);
             } else if (dragMode == false) {
@@ -4597,6 +5476,30 @@ function frame(time) {
     show();
     showMenu();
     
+  }
+  
+  if (uStart != null) {
+    let doU = true;
+    if (!pressedKeys.includes("u")) {
+      if (menuType == "timing" && mouseDown) {
+        menuValues.timing[4].updateHover(clientX - main.width, clientY + document.getElementById("scroll").scrollTop, 4);
+        if (!menuValues.timing[4].hovered) doU = false;
+      } else {
+        doU = false;
+      }
+    }
+    if (doU) {
+      let num = Math.floor((new Date() - uStart) / 1000);
+      if (num >= 1) {
+        num = Math.min(upf, 2 ** (num - 1));
+        let dt = speed / fps / upf;
+        for (let n = 0; n < num; n++) {
+          update(dt, false);
+        }
+      }
+    } else {
+      uStart = null;
+    }
   }
   
   pfmouseX = mouseX;
