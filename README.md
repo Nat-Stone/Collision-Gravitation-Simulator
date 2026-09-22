@@ -147,6 +147,7 @@ Click "presets" to select simulation presets.
       "angle" (g=2r)" contains two balls on equivalent strings, but the green pendulum is extended twice as far as the red pendulum.
       "length (g=2r)" contains two balls on equivalent springs, but the green pendulum is twice as long as the red pendulum.
       "mass (g=4r)" contains two balls on equivalent springs, but the green ball's mass if four times that of the red ball.
+      "double pendulum" contains two attached pendulums.
   Click "challenges" to see challenge presets.
     Click "find g" to see challenges focused on finding uniform gravity.
       "falling ball" provides a wall.
