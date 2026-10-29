@@ -114,6 +114,7 @@ let randomness = 0;
 let G = 0;
 let gx = 0;
 let gy = 0;
+let chargeConst = 8.99 * 10 ** 9;
 let bRestCoef = 0.99;
 let bSFrictCoef = 0.5;
 let bKFrictCoef = 0.2;
@@ -124,6 +125,7 @@ let distInc = 1/2;
 let angInc = 15;
 let density = 1;
 let moiCoef = 1/2;
+let chargeCoef = 1 / 10 ** 6;
 let wRestCoef = 0.99;
 let wSFrictCoef = 0.5;
 let wKFrictCoef = 0.2;
@@ -601,7 +603,7 @@ function Point(x, y) {
   }
 }
 
-function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, movable, rotatable, color) {
+function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, charge, drag0, drag1, drag2, movable, rotatable, color) {
   this.objType = "ball";
   
   this.px = px;
@@ -613,6 +615,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   this.mass = mass;
   this.size = size;
   this.moiCoef = moiCoef;
+  this.charge = charge;
   this.drag0 = drag0;
   this.drag1 = drag1;
   this.drag2 = drag2;
@@ -748,8 +751,9 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
       if (G != 0 && this.movable) {
         for (b of balls) {
           if (this != b) {
-            this.pe -= G * b.mass / dist(this.ppx, this.ppy, b.px, b.py);
-            this.e -= G * b.mass / dist(this.px, this.py, b.px, b.py);
+            let mag = chargeConst * this.charge * b.charge / this.mass - G * b.mass;
+            this.pe += mag / dist(this.ppx, this.ppy, b.px, b.py);
+            this.e += mag / dist(this.px, this.py, b.px, b.py);
           }
         }
       }
@@ -837,7 +841,7 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
     this.ax += gx;
     this.ay += gy;
     //object gravity
-    if (G != 0) {
+    if (G != 0 || chargeConst != 0) {
       for (b of balls) {
         if (b != this && (b != dragObj || dragMode == undefined) && !this.collided.includes(b)) {
           this.forceBall(b);
@@ -866,14 +870,14 @@ function Ball(px, py, pa, vx, vy, va, mass, size, moiCoef, drag0, drag1, drag2, 
   
   this.forceBall = function(b) {
     let distance = dist(this.px, this.py, b.px, b.py);
-    let mag = G / distance ** 3;
+    let mag = (chargeConst * this.charge * b.charge - G * this.mass * b.mass) / distance ** 3;
     if (this.movable) {
-      this.ax += mag * b.mass * (b.px - this.px);
-      this.ay += mag * b.mass * (b.py - this.py);
+      this.ax += mag / this.mass * (this.px - b.px);
+      this.ay += mag / this.mass * (this.py - b.py);
     }
     if (b.movable) {
-      b.ax += mag * this.mass * (this.px - b.px);
-      b.ay += mag * this.mass * (this.py - b.py);
+      b.ax += mag / b.mass * (b.px - this.px);
+      b.ay += mag / b.mass * (b.py - this.py);
     }
     b.collided.push(this);
   } //ball-ball gravity
@@ -1976,6 +1980,9 @@ function Preset(title, settings, objects, func) {
     if (settings.gy != undefined) {
       gy = settings.gy;
     }
+    if (settings.chargeConst != undefined) {
+      chargeConst = settings.chargeConst;
+    }
     if (settings.bRestCoef != undefined) {
       bRestCoef = settings.bRestCoef;
     }
@@ -2006,6 +2013,9 @@ function Preset(title, settings, objects, func) {
     }
     if (settings.moiCoef != undefined) {
       moiCoef = settings.moiCoef;
+    }
+    if (settings.chargeCoef != undefined) {
+      chargeCoef = settings.chargeCoef;
     }
     if (settings.dragCoef0 != undefined) {
       dragCoef0 = settings.dragCoef0;
@@ -2066,7 +2076,7 @@ function Preset(title, settings, objects, func) {
       for (o of objects) {
         switch (o.objType) {
           case "ball":
-            balls.push(new Ball(o.px, o.py, o.pa, o.vx, o.vy, o.va, o.mass, o.size, o.moiCoef, o.drag0, o.drag1, o.drag2, o.movable, o.rotatable, o.color));
+            balls.push(new Ball(o.px, o.py, o.pa, o.vx, o.vy, o.va, o.mass, o.size, o.moiCoef, o.charge, o.drag0, o.drag1, o.drag2, o.movable, o.rotatable, o.color));
             break;
           case "rectWall":
             walls.push(new RectWall(o.x1, o.y1, o.x2, o.y2, o.size, o.wRest, o.wSFrict, o.wKFrict, o.color));
@@ -2573,7 +2583,7 @@ function getWalls(l) {
 
 function createBall() {
   let newSize = 2 * alignNum(dist(newX1, newY1, mouseX, mouseY));
-  balls.push(new Ball(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, dragCoef0, dragCoef1, dragCoef2, ballMovable, ballRotatable, newColor));
+  balls.push(new Ball(newX1, newY1, alignAngle(angle(newX1, newY1, mouseX, mouseY)), 0, 0, 0, density * newSize ** 3, newSize, moiCoef, chargeCoef * newSize ** 3, dragCoef0, dragCoef1, dragCoef2, ballMovable, ballRotatable, newColor));
   
   newX1 = null;
   newY1 = null;
@@ -3574,6 +3584,7 @@ function setup() {
     "G": 0,
     "gx": 0,
     "gy": 0,
+    "chargeConst": 8.99 * 10 ** 9,
     "collide": true,
     "bRestCoef": 0.99,
     "bSFrictCoef": 0.5,
@@ -3584,6 +3595,7 @@ function setup() {
     "angInc": 15,
     "density": 1,
     "moiCoef": 1/2,
+    "chargeCoef": 0,
     "drag0": 0,
     "drag1": 0,
     "drag2": 0,
@@ -3670,6 +3682,7 @@ function setup() {
             "mass": b.mass,
             "size": b.size,
             "moiCoef": b.moiCoef,
+            "charge": b.charge,
             "drag0": b.drag0,
             "drag1": b.drag1,
             "drag2": b.drag2,
@@ -3815,7 +3828,7 @@ function setup() {
         
       }
       
-    }),
+    })
   ];
   
   menuValues.presets_demos = [
@@ -3862,8 +3875,8 @@ function setup() {
       walls.push(new RectWall(-thick, height + 2 + thick, -thick, -thick, 1 + thick, 0.99, 0.5, 0.2, "#000000"));
     })),
     new MenuPreset(false, new Preset("orbit", largeSettings, [], function() {
-      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, -0.089349, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, 0, 0, 0, true, true, "red"));
-      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, 0, 0, 0, true, true, "green"));
+      balls.push(new Ball(gameWidth / 2, gameHeight / 2, 0, 0, -0.089349, 0, 2 * 10 ** 30, 4 * 10 ** 10, 1/2, 0, 0, 0, 0, true, true, "red"));
+      balls.push(new Ball(gameWidth / 2 + 1.5 * 10 ** 11, gameHeight / 2, 0, 0, 29783, 0, 6 * 10 ** 24, 2 * 10 ** 10, 1/2, 0, 0, 0, 0, true, true, "green"));
     }))
   ];
   
@@ -3884,7 +3897,7 @@ function setup() {
           y = Math.random() < 0.5 ? 0 : gameHeight;
         }
         let size = Math.random() + 0.25;
-        balls.push(new Ball(x, y, Math.random() * Math.PI * 2, (gameWidth / 2 - x) / t, (gameHeight / 2 - y) / t, (Math.random() * 4 - 2) * Math.PI, density * size ** 3, size, 0.5, 0, 0, 0, true, true, randColor()));
+        balls.push(new Ball(x, y, Math.random() * Math.PI * 2, (gameWidth / 2 - x) / t, (gameHeight / 2 - y) / t, (Math.random() * 4 - 2) * Math.PI, density * size ** 3, size, 0.5, 0, 0, 0, 0, true, true, randColor()));
       }
     })),
     new MenuPreset(false, new Preset("1D cradles", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":0,"bRestCoef":1,"bSFrictCoef":0,"bKFrictCoef":0,"windVX":0,"windVY":0,"collide":true,"density":1,"moiCoef":0.5,"wRestCoef":1,"wSFrictCoef":0,"wKFrictCoef":0,"drag0":0,"drag1":0,"drag2":0,"distInc":0.5,"angInc":15}, [{"objType":"ball","px":2,"py":2,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":4,"py":2,"pa":0,"vx":0.00019702118716124594,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":5,"py":2,"pa":0,"vx":0.0001970101784573325,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":6,"py":2,"pa":0,"vx":0.00039012883899245006,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":7,"py":2,"pa":0,"vx":0.00019603112531174638,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,0,191)"},{"objType":"ball","px":5,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":6,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":7,"py":3.5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":2,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":3,"py":3.5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(0,191,0)"},{"objType":"ball","px":4,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":6,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":7,"py":5,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":3,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{"objType":"ball","px":2,"py":5,"pa":0,"vx":2,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(191,0,0)"},{
@@ -3892,7 +3905,7 @@ function setup() {
     new MenuPreset(false, new Preset("Newton's cradle", {...emptySettings, "endTime":-1,"speed":1,"height":10,"screenX":0,"screenY":0,"distOffsetX":0,"distOffsetY":0,"G":0,"gx":0,"gy":-9.8,"bRestCoef":1,"bSFrictCoef":0,"bKFrictCoef":0,"windVX":0,"windVY":0,"collide":true,"distInc":0.5,"angInc":15,"density":1,"moiCoef":0.5,"wRestCoef":1,"drag0":0,"drag1":0,"drag2":0,"ballMovable":true,"ballRotatable":true,"wSFrictCoef":0,"wKFrictCoef":0,"kCoef":400,"coilRatio":5,"thicknessRatio":0.1,"stringStrength":1,"enforceStringMin":false,"enforceStringMax":true}, [{"objType":"ball","px":1.9647239999999997,"py":1.13623,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":2.9647240000000004,"py":1.13623,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":5,"py":1,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":6,"py":1,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"ball","px":7,"py":1,"pa":0,"vx":0,"vy":0,"va":0,"mass":1,"size":1,"moiCoef":0.5,"drag0":0,"drag1":0,"drag2":0,"movable":true,"rotatable":true,"color":"rgb(127,0,0)"},{"objType":"rectWall","x1":1,"y1":5.5,"x2":9,"y2":5.5,"size":-1,"wRest":1,"wSFrict":0,"wKFrict":0,"color":"rgb(63,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":0},"dx1":-2,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":1},"dx1":-1,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":2},"dx1":0,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":3},"dx1":1,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"},{"objType":"string","obj1":{"objType":"rectWall","index":0},"obj2":{"objType":"ball","index":4},"dx1":2,"dy1":0,"dx2":0,"dy2":0,"length":4,"strength":1,"size":0.15000000000000002,"enforceMin":false,"enforceMax":true,"color":"rgb(191,0,0)"}])),
     
   ];
-  
+   
   menuValues.presets_demos_slopes = [
     new MenuButton("demos", function() {
       gotoMenu("presets_demos");
@@ -4086,6 +4099,9 @@ function setup() {
     new MenuFloat("moi", true, () => (moiCoef), function(moiCoef1) {
       moiCoef = moiCoef1;
     }),
+    new MenuFloat("charge", true, () => (chargeCoef), function(charge) {
+      chargeCoef = charge;
+    }),
     new MenuFloat("drag 0", true, () => (dragCoef0), function(dragCoef01) {
       dragCoef0 = dragCoef01;
     }),
@@ -4153,8 +4169,8 @@ function setup() {
     new MenuButton("general", function() {
       gotoMenu("variables_general");
     }),
-    new MenuButton("gravity", function() {
-      gotoMenu("variables_gravity");
+    new MenuButton("forces", function() {
+      gotoMenu("variables_forces");
     }),
     new MenuButton("balls", function() {
       gotoMenu("variables_balls");
@@ -4176,7 +4192,7 @@ function setup() {
     }),
   ];
   
-  menuValues.variables_gravity = [
+  menuValues.variables_forces = [
     new MenuButton("variables", function() {
       gotoMenu("variables");
     }),
@@ -4188,6 +4204,9 @@ function setup() {
     }),
     new MenuFloat("gy", true, () => (gy), function(gy1) {
       gy = gy1;
+    }),
+    new MenuFloat("Coulomb", true, () => (chargeConst), function(coulomb) {
+      chargeConst = coulomb;
     }),
   ];
   
@@ -4238,14 +4257,31 @@ function setup() {
       }
       return total;
     }),
+    new MenuFloat("potential", false, function() {
+      let total = 0;
+      for (b of balls) {
+        total -= b.mass * (gx * (b.px + distOffsetX) + gy * (b.py + distOffsetY));
+        if (G != 0 || chargeConst != 0) {
+          for (b1 of balls) {
+            if (b != b1) {
+              total += (chargeConst * b.charge * b1.charge - G * b.mass * b1.mass) / dist(b.px, b.py, b1.px, b1.py) / 2;
+            }
+          }
+        }
+      }
+      for (s of springs) {
+        total += s.k * (dist(...s.getPos1(), ...s.getPos2()) - s.equilibrium) ** 2 / 2;
+      }
+      return total;
+    }),
     new MenuFloat("energy", false, function() {
       let total = 0;
       for (b of balls) {
         total += b.mass * (b.vx ** 2 + b.vy ** 2) / 2 + b.moi * b.va ** 2 / 2 - b.mass * (gx * (b.px + distOffsetX) + gy * (b.py + distOffsetY));
-        if (G != 0) {
+        if (G != 0 || chargeConst != 0) {
           for (b1 of balls) {
             if (b != b1) {
-              total -= G * b.mass * b1.mass / dist(b.px, b.py, b1.px, b1.py) / 2;
+              total += (chargeConst * b.charge * b1.charge - G * b.mass * b1.mass) / dist(b.px, b.py, b1.px, b1.py) / 2;
             }
           }
         }
@@ -4320,6 +4356,9 @@ function setup() {
     }),
     new MenuFloat("moi", true, () => (dragObj.moi), function(moi) {
       dragObj.setMOI(moi);
+    }),
+    new MenuFloat("charge", true, () => (dragObj.charge), function(charge) {
+      dragObj.charge = charge;
     }),
     new MenuBoolean("movable", true, () => (dragObj.movable), function() {
       dragObj.movable = !dragObj.movable;
@@ -5518,4 +5557,4 @@ requestAnimationFrame(frame);
           
         </script>
     </body>
-</html>
+</html
