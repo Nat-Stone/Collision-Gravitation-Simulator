@@ -1,7 +1,7 @@
 # Collision/Gravitation Simulator
 https://sites.google.com/view/nat-stone-programming-projects/collisiongravitation-simulator
 
-This simulator is capable of modelling rigid collisions, gravitation, springs, and strings, with related constants such as little g, big G, restitution, friction, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls, springs, strings, and immovable rectangular, triangular, circular, and custom walls are supported. 
+This simulator is capable of modelling rigid collisions, gravitation, springs, strings, and Coulomb's law, with related constants such as little g, big G, restitution, friction, and drag being adjustable and quantities such as momentum and energy being visible in an in-simulation menu. Dynamic balls, springs, strings, and immovable rectangular, triangular, circular, and custom walls are supported. 
 
 Test your knowledge with the challenges; can you find the unknown attribute of the red object with only the provided green objects? Try to use as little information as possible. Note that randomness is enabled for challenges, so repeated trials, sometimes with varying values of given objects, are recommended.
 
@@ -52,6 +52,7 @@ Click a ball to edit its variables.
     "mass" is the mass of the ball.
     "moi coef" is the coefficient for the ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
     "moi" is the ball's moment of inertia.
+    "charge" is the charge of the ball.
     "movable" is whether the ball can be moved by interactions with other objects.
     "rotatable" is whether the ball can be moved by interactions with other objects. Unrotatable balls function as boxes.
   Click "position" to edit the ball's position.
@@ -184,8 +185,9 @@ Click "defaults" to edit object creation defaults.
     "dist" is the distance that holding "shift" aligns to.
     "angle" is the angle, in degrees, that holding "control" aligns to.
   Click "balls" to edit ball-related defaults.
-    "density" controls the mass of the created balls (mass = density * size³).
+    "density" controls the mass of the created ball (mass = density * size³).
     "moi" controls the coefficient of the created ball's moment of inertia (moment of inertia = moi * mass * (size / 2)²).
+    "charge" controls the charge density of the created ball (charge = charge(density) * size³)
     "drag 0" controls the coefficient of the constant (v⁰) term of drag.
     "drag 1" controls the coefficient of the linear (v¹) term of drag.
     "drag 2" controls the coefficient of the quadratic (v²) term of drag.
@@ -199,7 +201,7 @@ Click "defaults" to edit object creation defaults.
     "strength" controls the weight given to the string when averaging force between multiple strings.
     "min" controls whether the string length has a strict minimum.
     "max" controls whether the spring length has a strict maximum.
-  Click "walls" to edti wall-related defaults.
+  Click "walls" to edit wall-related defaults.
     "rest" controls the coefficient of restitution between a wall and balls.
     "μₛ" controls the coefficient of static friction between a wall and balls.
     "μₖ" controls the coefficient of kinetic friction between a wall and balls.
@@ -208,10 +210,11 @@ Click "variables" to edit simulation variables.
     "speed" is the speed of the simulation.
     "height" is the in-simulation height of the screen (the width will automatically adjust).
     "randomness" is the amount, on average, a ball will accelerate randomly.
-  Click "gravity" to edit gravity-related constants.
+  Click "forces" to edit force-related constants.
     "G" is the universal gravitational constant.
     "gx" is the horizontal component of the uniform gravitation force.
     "gy" is the vertical component of the uniform gravitation force.
+    "Coulomb" is Coulomb's constant.
   Click "ball" to edit ball-related constants.
     "collide" is whether or not balls collide with other balls.
     "rest" is the coefficient of restitution between balls.
@@ -223,4 +226,5 @@ Click "info" to view the simulation information.
   "mom x" is the total horizontal momentum of balls in the simulation.
   "mom y" is the total vertical momentum of balls in the simulation.
   "kinetic" is the total translational and rotational kinetic energy of balls in the simulation.
-  "energy" is the total energy of the simulation (translational kinetic, rotational kinetic, potential due to uniform gravity (relative to the closest point on the dist inc lattice to the bottom left of the screen), and potential due to gravity between balls).
+  "potential" is the total potential energy (elastic potential, potential due to uniform gravity (relative to the closest point on the dist inc lattice to the bottom left of the screen), potential due to gravity between balls, potential due to charge interactions between balls) in the simulation.
+  "energy" is the total energy of the simulation (translational kinetic, rotational kinetic, elastic potential, potential due to uniform gravity (relative to the closest point on the dist inc lattice to the bottom left of the screen), potential due to gravity between balls, potential due to charge interactions between balls).
